@@ -1,0 +1,13 @@
+{
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "env": [
+    "OPENAI_API_KEY",
+    "PRIVATE_KEY",
+    "KEEPERHUB_API_KEY",
+    "ZEROG_RPC_URL",
+    "ZEROG_INDEXER_URL",
+    "EXCHANGE_RATE_API_KEY"
+  ]
+}

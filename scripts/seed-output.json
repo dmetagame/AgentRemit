@@ -1,0 +1,53 @@
+{
+  "ensNames": [
+    "sends-ada-home.agentremit.eth"
+  ],
+  "txHashes": [
+    "0x1d81a492dc5de0d1d1c459a9ea579d332f6d753333383ea9c65cf2942ab47f34",
+    "0xca7ac5cc53c457b4569a167d9781fda02ec84d816e29518147725994ed22377c",
+    "0x46eb929ea01ad1fe46e908d8bf315be3acf98301fb47031e5bef963bead3e166"
+  ],
+  "zeroGStorageKeys": [
+    "agentremit:receipts:sends-ada-home.agentremit.eth:1777098686136",
+    "agentremit:receipts:sends-ada-home.agentremit.eth:1777185086136",
+    "agentremit:receipts:sends-ada-home.agentremit.eth:1777271486136"
+  ],
+  "receipts": [
+    {
+      "id": "sends-ada-home.agentremit.eth:1777098686136",
+      "agentEnsName": "sends-ada-home.agentremit.eth",
+      "senderAddress": "0xD3eed2f7dcED5fbc96Fb1a0FC058C540D50b4f80",
+      "recipientAddress": "0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53",
+      "amountUsdc": "50",
+      "effectiveRateNgn": 1584,
+      "keeperJobId": "kh_demo_001",
+      "uniswapTxHash": "0x1d81a492dc5de0d1d1c459a9ea579d332f6d753333383ea9c65cf2942ab47f34",
+      "timestamp": 1777098686136,
+      "status": "success"
+    },
+    {
+      "id": "sends-ada-home.agentremit.eth:1777185086136",
+      "agentEnsName": "sends-ada-home.agentremit.eth",
+      "senderAddress": "0xD3eed2f7dcED5fbc96Fb1a0FC058C540D50b4f80",
+      "recipientAddress": "0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53",
+      "amountUsdc": "100",
+      "effectiveRateNgn": 1612,
+      "keeperJobId": "kh_demo_002",
+      "uniswapTxHash": "0xca7ac5cc53c457b4569a167d9781fda02ec84d816e29518147725994ed22377c",
+      "timestamp": 1777185086136,
+      "status": "success"
+    },
+    {
+      "id": "sends-ada-home.agentremit.eth:1777271486136",
+      "agentEnsName": "sends-ada-home.agentremit.eth",
+      "senderAddress": "0xD3eed2f7dcED5fbc96Fb1a0FC058C540D50b4f80",
+      "recipientAddress": "0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53",
+      "amountUsdc": "200",
+      "effectiveRateNgn": 1620,
+      "keeperJobId": "kh_demo_003",
+      "uniswapTxHash": "0x46eb929ea01ad1fe46e908d8bf315be3acf98301fb47031e5bef963bead3e166",
+      "timestamp": 1777271486136,
+      "status": "success"
+    }
+  ]
+}
