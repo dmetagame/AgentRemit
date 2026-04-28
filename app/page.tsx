@@ -22,13 +22,13 @@ type RateResponse = {
 
 const DEFAULT_RATE = 1500;
 const DEFAULT_TARGET_SPREAD = 100;
+const SEEDED_AGENT_ENS_NAME = "sends-ada-home.agentremit.eth";
 
 export default function Home() {
   const [state, setState] = useState<DashboardState>("idle");
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [currentRate, setCurrentRate] = useState(DEFAULT_RATE);
-  const [hasConfirmedTransaction, setHasConfirmedTransaction] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,7 +84,6 @@ export default function Home() {
     }
 
     if (event.type === "job_confirmed" || event.type === "receipt_saved") {
-      setHasConfirmedTransaction(true);
       setState(event.type === "receipt_saved" ? "done" : "executing");
       return;
     }
@@ -112,7 +111,6 @@ export default function Home() {
     (config: AgentConfig, eventStream?: ReadableStream<Uint8Array> | null) => {
       setAgentConfig(config);
       setEvents([]);
-      setHasConfirmedTransaction(false);
       setState("watching");
 
       if (eventStream) {
@@ -129,6 +127,7 @@ export default function Home() {
   const targetRate =
     agentConfig?.targetRateNgn ?? Math.round(currentRate + DEFAULT_TARGET_SPREAD);
   const isWatching = state === "watching" || state === "executing";
+  const receiptsAgentEnsName = agentConfig?.ensName ?? SEEDED_AGENT_ENS_NAME;
 
   return (
     <main className="min-h-screen bg-[#f7f8fa] text-[#101418]">
@@ -195,9 +194,7 @@ export default function Home() {
 
           <ActivityFeed events={events} status={activityStatus(state)} />
 
-          {hasConfirmedTransaction && agentConfig ? (
-            <ReceiptsTable agentEnsName={agentConfig.ensName} />
-          ) : null}
+          <ReceiptsTable agentEnsName={receiptsAgentEnsName} />
         </section>
       </div>
     </main>

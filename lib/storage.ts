@@ -5,11 +5,14 @@ import {
   type UploadOption,
   type Uploader,
 } from "@0glabs/0g-ts-sdk";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { ethers } from "ethers";
 import type { RemittanceReceipt } from "@/types";
 
 const RECEIPT_PREFIX = "agentremit:receipts";
 const LOG_PREFIX = "agentremit:logs";
+const SEED_OUTPUT_PATH = path.join(process.cwd(), "scripts", "seed-output.json");
 const ZEROG_RPC = process.env.ZEROG_RPC_URL!;
 const ZEROG_INDEXER = process.env.ZEROG_INDEXER_URL!;
 const MIN_STORAGE_SIZE_BYTES = 256;
@@ -39,6 +42,7 @@ const sessionReceiptRoots = new Map<string, string>();
 const sessionReceipts = new Map<string, string>();
 const sessionLogRoots = new Map<string, string>();
 const sessionLogs = new Map<string, string[]>();
+let seededReceiptsCache: RemittanceReceipt[] | null = null;
 
 type ZeroGUploadResult = {
   txHash: string;
@@ -125,11 +129,21 @@ export async function getReceiptHistory(
   agentEnsName: string,
 ): Promise<RemittanceReceipt[]> {
   const prefix = getReceiptPrefix(agentEnsName);
+  const receipts = new Map<string, RemittanceReceipt>();
 
-  return Array.from(sessionReceipts.entries())
+  for (const receipt of await loadSeededReceipts()) {
+    if (receipt.agentEnsName === agentEnsName) {
+      receipts.set(receipt.id, receipt);
+    }
+  }
+
+  Array.from(sessionReceipts.entries())
     .filter(([key]) => key.startsWith(prefix))
     .map(([, rawValue]) => parseReceipt(rawValue))
     .filter((receipt): receipt is RemittanceReceipt => receipt !== null)
+    .forEach((receipt) => receipts.set(receipt.id, receipt));
+
+  return Array.from(receipts.values())
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
@@ -376,6 +390,30 @@ async function uploadSegmentsBestEffort(
 
 function padStoragePayload(value: string): string {
   return value.padEnd(MIN_STORAGE_SIZE_BYTES, " ");
+}
+
+async function loadSeededReceipts(): Promise<RemittanceReceipt[]> {
+  if (seededReceiptsCache !== null) {
+    return seededReceiptsCache;
+  }
+
+  try {
+    const rawSeedOutput = await readFile(SEED_OUTPUT_PATH, "utf8");
+    const parsed = JSON.parse(rawSeedOutput) as { receipts?: unknown };
+
+    if (!Array.isArray(parsed.receipts)) {
+      seededReceiptsCache = [];
+      return seededReceiptsCache;
+    }
+
+    seededReceiptsCache = parsed.receipts
+      .map((receipt) => parseReceipt(JSON.stringify(receipt)))
+      .filter((receipt): receipt is RemittanceReceipt => receipt !== null);
+  } catch {
+    seededReceiptsCache = [];
+  }
+
+  return seededReceiptsCache;
 }
 
 function parseReceipt(rawValue: string): RemittanceReceipt | null {
