@@ -34,6 +34,7 @@ export async function POST(request: Request) {
 
   const encoder = new TextEncoder();
   const agent = new RemittanceAgent(body);
+  let cancelStream: (() => void) | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -69,7 +70,17 @@ export async function POST(request: Request) {
 
         closed = true;
         cleanup();
+        cancelStream = null;
         controller.close();
+      };
+      cancelStream = () => {
+        if (closed) {
+          return;
+        }
+
+        closed = true;
+        cleanup();
+        agent.stop();
       };
 
       agent.on("event", send);
@@ -78,7 +89,8 @@ export async function POST(request: Request) {
       void agent.start();
     },
     cancel() {
-      agent.stop();
+      cancelStream?.();
+      cancelStream = null;
     },
   });
 

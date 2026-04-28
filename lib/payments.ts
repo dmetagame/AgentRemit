@@ -3,6 +3,7 @@ import type { TransactionRequest } from "viem";
 import type { KeeperJob, PaymentQuote, PaymentRequest } from "@/types";
 import { resolveEnsName } from "@/lib/ens";
 import { quoteNgnToUsdc, toUsdcUnits } from "@/lib/swap";
+import type { KeeperHubContractCall } from "@/lib/swap";
 
 export interface PreparedPayment {
   to: `0x${string}`;
@@ -11,6 +12,19 @@ export interface PreparedPayment {
   receiptId: string;
   memo?: string;
 }
+
+type RemittanceMeta = {
+  agentEnsName: string;
+  recipientAddress: string;
+  targetRate: number;
+  amountUsdc: string;
+};
+
+type MockKeeperJobRecord = KeeperJob & {
+  meta: RemittanceMeta;
+};
+
+const mockKeeperJobs = new Map<string, MockKeeperJobRecord>();
 
 export async function preparePayment(
   request: PaymentRequest,
@@ -48,21 +62,23 @@ async function resolveRecipient(request: PaymentRequest): Promise<`0x${string}`>
 
 export async function scheduleRemittance(
   swapTx: TransactionRequest,
-  meta: {
-    agentEnsName: string;
-    recipientAddress: string;
-    targetRate: number;
-    amountUsdc: string;
-  },
+  meta: RemittanceMeta,
 ): Promise<string> {
-  const payload = await keeperHubRequest<unknown>("/jobs", {
+  if (shouldUseMockKeeperHub()) {
+    return createMockKeeperJob(meta);
+  }
+
+  const contractCall = getKeeperHubContractCall(swapTx);
+  const payload = await keeperHubRequest<unknown>("/execute/contract-call", {
     method: "POST",
     body: JSON.stringify({
-      transaction: serializeTransactionRequest(swapTx),
-      retry_attempts: 3,
-      priority: "high",
-      gas_optimization: true,
-      metadata: meta,
+      contractAddress: contractCall.contractAddress,
+      network: process.env.KEEPERHUB_NETWORK ?? contractCall.network,
+      functionName: contractCall.functionName,
+      functionArgs: JSON.stringify(contractCall.functionArgs),
+      abi: JSON.stringify(contractCall.abi),
+      value: contractCall.value,
+      gasLimitMultiplier: contractCall.gasLimitMultiplier,
     }),
   });
   const job = unwrapKeeperHubPayload(payload);
@@ -71,10 +87,13 @@ export async function scheduleRemittance(
     throw new Error("KeeperHub did not return a job object");
   }
 
-  const jobId = readString(job, "jobId") ?? readString(job, "id");
+  const jobId =
+    readString(job, "executionId") ??
+    readString(job, "jobId") ??
+    readString(job, "id");
 
   if (!jobId) {
-    throw new Error("KeeperHub did not return a jobId");
+    throw new Error("KeeperHub did not return an executionId");
   }
 
   return jobId;
@@ -84,13 +103,39 @@ export async function pollJobStatus(
   jobId: string,
   onUpdate: (job: KeeperJob) => void,
 ): Promise<KeeperJob> {
+  const mockJob = mockKeeperJobs.get(jobId);
+
+  if (mockJob) {
+    const executing = {
+      ...mockJob,
+      status: "executing" as const,
+      updatedAt: Date.now(),
+    };
+    mockKeeperJobs.set(jobId, executing);
+    onUpdate(executing);
+    await delay(1200);
+
+    const confirmed = {
+      ...executing,
+      status: "confirmed" as const,
+      txHash: makeMockTransactionHash(jobId),
+      updatedAt: Date.now(),
+    };
+    mockKeeperJobs.set(jobId, confirmed);
+    onUpdate(confirmed);
+
+    return confirmed;
+  }
+
   const startedAt = Date.now();
   const timeoutMs = 5 * 60 * 1000;
   let lastStatus: KeeperJob["status"] | undefined;
 
   while (Date.now() - startedAt < timeoutMs) {
-    const payload = await keeperHubRequest<unknown>(`/jobs/${jobId}`);
-    const job = normalizeKeeperJob(unwrapKeeperHubPayload(payload));
+    const payload = await keeperHubRequest<unknown>(
+      `/execute/${encodeURIComponent(jobId)}/status`,
+    );
+    const job = normalizeKeeperJob(unwrapKeeperHubPayload(payload), jobId);
 
     if (job.status !== lastStatus) {
       onUpdate(job);
@@ -108,18 +153,16 @@ export async function pollJobStatus(
 }
 
 export async function getJobHistory(agentEnsName: string): Promise<KeeperJob[]> {
-  const params = new URLSearchParams({
-    "metadata.agentEnsName": agentEnsName,
-  });
-  const payload = await keeperHubRequest<unknown>(`/jobs?${params.toString()}`);
-  const data = unwrapKeeperHubPayload(payload);
-  const jobs = Array.isArray(data)
-    ? data
-    : isRecord(data) && Array.isArray(data.jobs)
-      ? data.jobs
-      : [];
-
-  return jobs.filter(isRecord).map(normalizeKeeperJob);
+  return Array.from(mockKeeperJobs.values())
+    .filter((job) => job.meta.agentEnsName === agentEnsName)
+    .map((job) => ({
+      jobId: job.jobId,
+      status: job.status,
+      txHash: job.txHash,
+      gasUsed: job.gasUsed,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+    }));
 }
 
 async function keeperHubRequest<T>(
@@ -132,11 +175,14 @@ async function keeperHubRequest<T>(
     throw new Error("KEEPERHUB_API_KEY is required for KeeperHub requests");
   }
 
-  const baseUrl = process.env.KEEPERHUB_API_URL ?? "https://app.keeperhub.com/api";
+  const baseUrl = normalizeBaseUrl(
+    process.env.KEEPERHUB_API_URL ?? "https://app.keeperhub.com/api",
+  );
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
       "X-API-Key": apiKey,
       ...init.headers,
     },
@@ -145,26 +191,27 @@ async function keeperHubRequest<T>(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "");
-    throw new Error(
-      `KeeperHub request failed with ${response.status}: ${errorBody}`,
-    );
+    throw new Error(formatKeeperHubError(response, path, errorBody));
   }
 
   return (await response.json()) as T;
 }
 
-function serializeTransactionRequest(swapTx: TransactionRequest) {
-  return Object.fromEntries(
-    Object.entries(swapTx)
-      .filter(([, value]) => value !== undefined)
-      .map(([key, value]) => [
-        key,
-        typeof value === "bigint" ? value.toString() : value,
-      ]),
-  );
+function getKeeperHubContractCall(
+  swapTx: TransactionRequest,
+): KeeperHubContractCall {
+  const contractCall = (swapTx as TransactionRequest & {
+    keeperHubCall?: KeeperHubContractCall;
+  }).keeperHubCall;
+
+  if (!contractCall) {
+    throw new Error("Swap transaction is missing KeeperHub contract-call data");
+  }
+
+  return contractCall;
 }
 
-function normalizeKeeperJob(value: unknown): KeeperJob {
+function normalizeKeeperJob(value: unknown, fallbackJobId = ""): KeeperJob {
   if (!isRecord(value)) {
     throw new Error("KeeperHub returned an invalid job payload");
   }
@@ -172,7 +219,11 @@ function normalizeKeeperJob(value: unknown): KeeperJob {
   const now = Date.now();
 
   return {
-    jobId: readString(value, "jobId") ?? readString(value, "id") ?? "",
+    jobId:
+      readString(value, "jobId") ??
+      readString(value, "executionId") ??
+      readString(value, "id") ??
+      fallbackJobId,
     status: normalizeKeeperStatus(readString(value, "status")),
     txHash: readString(value, "txHash") ?? readString(value, "transactionHash"),
     gasUsed: readString(value, "gasUsed") ?? readString(value, "gasUsedWei"),
@@ -186,12 +237,20 @@ function normalizeKeeperStatus(status?: string): KeeperJob["status"] {
     return status;
   }
 
-  if (status === "confirmed" || status === "completed") {
+  if (
+    status === "confirmed" ||
+    status === "completed" ||
+    status === "success"
+  ) {
     return "confirmed";
   }
 
   if (status === "running") {
     return "executing";
+  }
+
+  if (status === "error" || status === "cancelled") {
+    return "failed";
   }
 
   return "pending";
@@ -236,4 +295,74 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function shouldUseMockKeeperHub(): boolean {
+  const mode = process.env.KEEPERHUB_MODE?.toLowerCase();
+
+  if (mode === "mock" || mode === "dev" || mode === "local") {
+    return true;
+  }
+
+  return !process.env.KEEPERHUB_API_KEY && process.env.NODE_ENV === "development";
+}
+
+function createMockKeeperJob(meta: RemittanceMeta): string {
+  const now = Date.now();
+  const jobId = `kh_dev_${now.toString(36)}`;
+
+  mockKeeperJobs.set(jobId, {
+    jobId,
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+    meta,
+  });
+
+  return jobId;
+}
+
+function makeMockTransactionHash(jobId: string): `0x${string}` {
+  return ethers.id(`agentremit:${jobId}`) as `0x${string}`;
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function formatKeeperHubError(
+  response: Response,
+  path: string,
+  body: string,
+): string {
+  const contentType = response.headers.get("content-type") ?? "";
+  const trimmedBody = body.trim();
+  const returnedHtml =
+    contentType.includes("text/html") ||
+    trimmedBody.toLowerCase().startsWith("<!doctype") ||
+    trimmedBody.toLowerCase().startsWith("<html");
+
+  if (returnedHtml) {
+    return `KeeperHub request failed with ${response.status} at ${path}: endpoint returned an HTML page. Check KEEPERHUB_API_URL and the KeeperHub endpoint path.`;
+  }
+
+  if (trimmedBody) {
+    try {
+      const parsed = JSON.parse(trimmedBody) as Record<string, unknown>;
+      const message =
+        readString(parsed, "error") ??
+        readString(parsed, "message") ??
+        readString(parsed, "details");
+
+      if (message) {
+        return `KeeperHub request failed with ${response.status} at ${path}: ${message}`;
+      }
+    } catch {
+      // Fall through to the raw body excerpt below.
+    }
+  }
+
+  const excerpt = trimmedBody ? `: ${trimmedBody.slice(0, 300)}` : "";
+
+  return `KeeperHub request failed with ${response.status} at ${path}${excerpt}`;
 }

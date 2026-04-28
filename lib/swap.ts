@@ -37,8 +37,19 @@ export interface SwapQuote {
   minimumOut: string;
 }
 
+export interface KeeperHubContractCall {
+  contractAddress: Address;
+  network: "sepolia";
+  functionName: "execute";
+  functionArgs: readonly [Hex, readonly Hex[], string];
+  abi: unknown;
+  value: string;
+  gasLimitMultiplier: string;
+}
+
 export type SwapTransactionRequest = TransactionRequest & {
   gasLimit: bigint;
+  keeperHubCall?: KeeperHubContractCall;
 };
 
 const USDC_DECIMALS = 6;
@@ -186,6 +197,15 @@ export async function buildSwapTransaction(
       value: amountIn,
       gas: gasLimit,
       gasLimit,
+      keeperHubCall: {
+        contractAddress: UNIVERSAL_ROUTER_ADDRESS,
+        network: "sepolia",
+        functionName: "execute",
+        functionArgs: [commands, inputs, deadline.toString()],
+        abi: universalRouterAbi,
+        value: amountIn.toString(),
+        gasLimitMultiplier: "1.2",
+      },
     };
   } catch (error) {
     throw normalizeSwapError(error);

@@ -16,6 +16,16 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+For a local end-to-end demo without spending KeeperHub wallet funds, run:
+
+```bash
+KEEPERHUB_MODE=mock npm run dev
+```
+
+For live KeeperHub execution, leave `KEEPERHUB_MODE` unset and provide
+`KEEPERHUB_API_KEY`. `KEEPERHUB_API_URL` defaults to
+`https://app.keeperhub.com/api`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
