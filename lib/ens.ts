@@ -53,15 +53,16 @@ export async function registerAgentName(
 ): Promise<string> {
   const label = normalizeSubname(subname);
   const fullName = `${label}.${AGENT_ROOT_NAME}`;
-  const owner = assertAddress(ownerAddress, "ownerAddress");
+  const agentOwner = assertAddress(ownerAddress, "ownerAddress");
   const recipient = assertAddress(config.recipientAddress, "recipientAddress");
-  const wallet = getEnsWalletClient();
+  const registrar = getEnsAccount();
+  const wallet = getEnsWalletClient(registrar);
   const createdAt = new Date().toISOString();
 
   await waitForHash(
     await wallet.createSubname({
       name: fullName,
-      owner,
+      owner: registrar.address,
       contract: "registry",
       resolverAddress: SEPOLIA_PUBLIC_RESOLVER_ADDRESS,
     }),
@@ -69,7 +70,7 @@ export async function registerAgentName(
 
   const records = {
     purpose: "Autonomous remittance agent — Lagos corridor",
-    owner,
+    owner: agentOwner,
     recipient,
     target_rate: config.targetRateNgn.toString(),
     amount_usdc: config.amountUsdc,
@@ -184,15 +185,17 @@ export async function lookupEnsAddress(address: Address): Promise<string | null>
   return record?.name ?? null;
 }
 
-function getEnsWalletClient() {
+function getEnsAccount() {
   const privateKey = process.env.PRIVATE_KEY;
 
   if (!privateKey) {
     throw new Error("PRIVATE_KEY is required for ENS write operations");
   }
 
-  const account = privateKeyToAccount(normalizePrivateKey(privateKey));
+  return privateKeyToAccount(normalizePrivateKey(privateKey));
+}
 
+function getEnsWalletClient(account = getEnsAccount()) {
   return createEnsWalletClient({
     account,
     chain: sepolia,
