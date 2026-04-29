@@ -5,7 +5,7 @@ export async function RateCard() {
 
   return (
     <section className="rounded-md border border-[#d8dee4] bg-white p-5 shadow-sm">
-      <p className="text-sm font-medium text-[#57606a]">NGN/USDC rate</p>
+      <p className="text-sm font-medium text-[#57606a]">USDC/NGN rate</p>
       <div className="mt-4 flex items-end gap-2">
         <span className="text-4xl font-semibold">
           {rate.rate.toLocaleString("en-NG", {

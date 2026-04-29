@@ -72,9 +72,9 @@ export interface AgentStatus {
 }
 
 export interface RateQuote {
-  pair: "NGN/USDC";
-  base: "NGN";
-  quote: "USDC";
+  pair: "USDC/NGN";
+  base: "USDC";
+  quote: "NGN";
   rate: number;
   inverseRate: number;
   source: string;

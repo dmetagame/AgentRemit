@@ -1,6 +1,6 @@
 # AgentRemit
 
-AgentRemit is an autonomous remittance agent for the Lagos corridor. A sender connects a wallet, sets a recipient, amount, and target NGN/USDC exchange rate, then deploys an ENS-backed agent that watches live rates and executes when the target is reached.
+AgentRemit is an autonomous remittance agent for the Lagos corridor. A sender connects a wallet, sets a recipient, amount, and target USDC/NGN exchange rate, then deploys an ENS-backed agent that watches live rates and executes when the target is reached.
 
 The product combines wallet onboarding, live FX monitoring, ENS agent identity, Uniswap quote and swap preparation, KeeperHub execution, and 0G Storage receipts into one end-to-end remittance workflow.
 
@@ -11,9 +11,9 @@ The product combines wallet onboarding, live FX monitoring, ENS agent identity, 
 
 ## Submission Description
 
-AgentRemit lets diaspora senders automate stablecoin remittances instead of manually checking rates and timing transfers. The sender configures a remittance agent with a target NGN/USDC rate. The agent registers an ENS identity, watches live exchange-rate data, requests a Uniswap quote when the target is reached, submits the execution through KeeperHub, and stores the resulting receipt on 0G Storage.
+AgentRemit lets diaspora senders automate stablecoin remittances instead of manually checking rates and timing transfers. The sender configures a remittance agent with a target USDC/NGN rate. The agent registers an ENS identity, watches live exchange-rate data, requests a Uniswap quote when the target is reached, submits the execution through KeeperHub, and stores the resulting receipt on 0G Storage.
 
-For the demo, the dashboard shows wallet connection, a live nonzero NGN/USDC rate, auto-generated agent ENS names, seeded 0G receipts, and a full live activity feed: rate hit, quote, KeeperHub job, receipt saved, and ENS stats updated.
+For the demo, the dashboard shows wallet connection, a live nonzero USDC/NGN rate, auto-generated agent ENS names, seeded 0G receipts, and a full live activity feed: rate hit, quote, KeeperHub job, receipt saved, and ENS stats updated.
 
 ## Why It Matters
 
@@ -22,7 +22,7 @@ Remittance senders often care about timing. A small rate movement can materially
 ## Core Features
 
 - Connect wallet with RainbowKit and Wagmi.
-- Display live NGN/USDC rates from the rates API.
+- Display live USDC/NGN rates from the rates API.
 - Auto-generate agent ENS names from sender input.
 - Register ENS subnames and store agent configuration in text records.
 - Trigger immediately when the live rate reaches the configured target.
@@ -45,7 +45,7 @@ Remittance senders often care about timing. A small rate movement can materially
 
 1. Open the production dashboard.
 2. Connect a wallet and confirm the shortened wallet address appears.
-3. Confirm the rate tracker shows a live NGN/USDC value.
+3. Confirm the rate tracker shows a live USDC/NGN value.
 4. Fill the setup form with a recipient, amount, and target rate below the current rate.
 5. Confirm the ENS name preview updates while typing.
 6. Deploy the agent.
@@ -109,7 +109,7 @@ curl "http://localhost:3000/api/receipts?agent=sends-ada-home.agentremit.eth"
 
 Expected behavior:
 
-- `/api/rates` returns current NGN/USDC JSON with a positive rate.
+- `/api/rates` returns current USDC/NGN JSON with a positive rate.
 - `/api/receipts` returns the seeded 0G receipt history for `sends-ada-home.agentremit.eth`.
 
 ## Verification

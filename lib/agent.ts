@@ -62,7 +62,7 @@ export class RemittanceAgent extends EventEmitter {
         this.lastRateNgn = rate.rate;
         this.emitAgentEvent({
           type: "rate_update",
-          message: `Current rate: ${rate.rate} NGN/USDC`,
+          message: `Current rate: ${rate.rate} NGN per USDC`,
           data: { rate },
         });
       });

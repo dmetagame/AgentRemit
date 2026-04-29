@@ -23,6 +23,6 @@ The main gap was an end-to-end Sepolia example for v3 Quoter plus UniversalRoute
 A typed helper or SDK endpoint that returns ready-to-send UniversalRouter calldata for a simple exact-input swap would make this much easier. It would be especially useful if it accepted chain ID, token in/out, fee tier, amount in, recipient, deadline, and slippage, then returned quote, minimum out, route, calldata, value, and gas estimate.
 
 ## Integration summary
-Built AgentRemit: an autonomous remittance agent for the Lagos corridor that watches NGN/USDC rates and executes swaps when the rate hits a user-defined target. Used Uniswap v3 Quoter for rate quotes and UniversalRouter for swap execution on Sepolia.
+Built AgentRemit: an autonomous remittance agent for the Lagos corridor that watches USDC/NGN rates and executes swaps when the rate hits a user-defined target. Used Uniswap v3 Quoter for rate quotes and UniversalRouter for swap execution on Sepolia.
 
 NOTE: This file must be committed to the repo root before submission for Uniswap prize eligibility.

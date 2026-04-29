@@ -11,9 +11,9 @@ interface ExchangeRateResponse {
 
 function makeRateQuote(rate: number, source: string): RateQuote {
   return {
-    pair: "NGN/USDC",
-    base: "NGN",
-    quote: "USDC",
+    pair: "USDC/NGN",
+    base: "USDC",
+    quote: "NGN",
     rate,
     inverseRate: 1 / rate,
     source,

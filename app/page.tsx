@@ -18,10 +18,12 @@ type DashboardState =
 
 type RateResponse = {
   rate?: number;
+  asOf?: string;
 };
 
 const DEFAULT_RATE = 1500;
 const DEFAULT_TARGET_SPREAD = 100;
+const RATE_POLL_INTERVAL_MS = 30_000;
 const SEEDED_AGENT_ENS_NAME = "sends-ada-home.agentremit.eth";
 
 export default function Home() {
@@ -29,6 +31,7 @@ export default function Home() {
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [currentRate, setCurrentRate] = useState(DEFAULT_RATE);
+  const [rateUpdatedAt, setRateUpdatedAt] = useState(() => Date.now());
 
   useEffect(() => {
     let cancelled = false;
@@ -38,20 +41,28 @@ export default function Home() {
         const response = await fetch("/api/rates", { cache: "no-store" });
         const payload = (await response.json()) as RateResponse;
 
-        if (!cancelled && typeof payload.rate === "number") {
+        if (
+          !cancelled &&
+          typeof payload.rate === "number" &&
+          Number.isFinite(payload.rate) &&
+          payload.rate > 0
+        ) {
           setCurrentRate(payload.rate);
+          setRateUpdatedAt(readTimestamp(payload.asOf) ?? Date.now());
         }
       } catch {
         if (!cancelled) {
-          setCurrentRate(DEFAULT_RATE);
+          setRateUpdatedAt(Date.now());
         }
       }
     }
 
     void loadRate();
+    const interval = setInterval(loadRate, RATE_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, []);
 
@@ -66,10 +77,12 @@ export default function Home() {
       setState((current) =>
         current === "idle" || current === "configuring" ? "watching" : current,
       );
-      const rate = readRate(event);
+      const rateQuote = readRateQuote(event);
+      const rate = rateQuote?.rate ?? readRate(event);
 
       if (typeof rate === "number") {
         setCurrentRate(rate);
+        setRateUpdatedAt(readTimestamp(rateQuote?.asOf) ?? Date.now());
       }
       return;
     }
@@ -159,7 +172,10 @@ export default function Home() {
             </p>
           </div>
 
-          <SetupForm onAgentStarted={handleAgentStarted} />
+          <SetupForm
+            currentRate={currentRate}
+            onAgentStarted={handleAgentStarted}
+          />
 
           {agentConfig ? (
             <div className="rounded-md border border-[#d8dee4] bg-white p-5 shadow-sm">
@@ -190,6 +206,7 @@ export default function Home() {
             currentRate={currentRate}
             targetRate={targetRate}
             isWatching={isWatching}
+            updatedAt={rateUpdatedAt}
           />
 
           <ActivityFeed events={events} status={activityStatus(state)} />
@@ -268,6 +285,12 @@ function readRate(event: AgentEvent): number | null {
   return null;
 }
 
+function readRateQuote(event: AgentEvent): RateQuote | null {
+  const rate = event.data?.rate;
+
+  return isRateQuote(rate) ? rate : null;
+}
+
 function isRateQuote(value: unknown): value is RateQuote {
   return (
     typeof value === "object" &&
@@ -275,6 +298,16 @@ function isRateQuote(value: unknown): value is RateQuote {
     "rate" in value &&
     typeof (value as { rate?: unknown }).rate === "number"
   );
+}
+
+function readTimestamp(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function activityStatus(state: DashboardState) {
@@ -335,11 +368,11 @@ function rightColumnHeading(state: DashboardState): string {
 
 function rightColumnMessage(state: DashboardState): string {
   if (state === "idle" || state === "configuring") {
-    return "Live rate tracking starts after deployment.";
+    return "Live USDC/NGN rates update every 30 seconds. Deploy an agent to act on your target.";
   }
 
   if (state === "watching") {
-    return "The agent is checking the NGN/USDC rate and will act when your target is reached.";
+    return "The agent is checking the USDC/NGN rate and will act when your target is reached.";
   }
 
   if (state === "executing") {

@@ -10,10 +10,7 @@ type SetupFormProps = {
     config: AgentConfig,
     eventStream?: ReadableStream<Uint8Array> | null,
   ) => void;
-};
-
-type RateResponse = {
-  rate?: number;
+  currentRate?: number | null;
 };
 
 type ResolveResponse = {
@@ -21,7 +18,7 @@ type ResolveResponse = {
   error?: string;
 };
 
-export function SetupForm({ onAgentStarted }: SetupFormProps) {
+export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
   const { address: ownerAddress } = useAccount();
   const [name, setName] = useState("");
   const [recipientInput, setRecipientInput] = useState("");
@@ -31,7 +28,6 @@ export function SetupForm({ onAgentStarted }: SetupFormProps) {
   >("idle");
   const [amountUsdc, setAmountUsdc] = useState("");
   const [targetRateNgn, setTargetRateNgn] = useState("");
-  const [currentRate, setCurrentRate] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -53,31 +49,6 @@ export function SetupForm({ onAgentStarted }: SetupFormProps) {
     targetRateNumber > 0 &&
     resolverState !== "loading" &&
     !isSubmitting;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRate() {
-      try {
-        const response = await fetch("/api/rates", { cache: "no-store" });
-        const payload = (await response.json()) as RateResponse;
-
-        if (!cancelled && typeof payload.rate === "number") {
-          setCurrentRate(payload.rate);
-        }
-      } catch {
-        if (!cancelled) {
-          setCurrentRate(null);
-        }
-      }
-    }
-
-    void loadRate();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     const nameToResolve = trimmedRecipient;
@@ -229,7 +200,7 @@ export function SetupForm({ onAgentStarted }: SetupFormProps) {
               inputMode="decimal"
               placeholder={
                 currentRate
-                  ? `Current: ${currentRate.toLocaleString("en-NG")} NGN/USDC`
+                  ? `Current: ${currentRate.toLocaleString("en-NG")} NGN per USDC`
                   : "Current live rate"
               }
               value={targetRateNgn}

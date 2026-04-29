@@ -6,34 +6,27 @@ type RateTrackerProps = {
   currentRate: number;
   targetRate: number;
   isWatching: boolean;
-};
-
-type RateResponse = {
-  rate?: number;
+  updatedAt: number;
 };
 
 const BASELINE_RATE = 1400;
-const POLL_INTERVAL_MS = 30_000;
 
 export function RateTracker({
   currentRate,
   targetRate,
   isWatching,
+  updatedAt,
 }: RateTrackerProps) {
-  const [rate, setRate] = useState(currentRate);
-  const [updatedAt, setUpdatedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   const [pulseKey, setPulseKey] = useState(0);
   const progress = useMemo(
-    () => calculateProgress(rate, targetRate),
-    [rate, targetRate],
+    () => calculateProgress(currentRate, targetRate),
+    [currentRate, targetRate],
   );
-  const distanceToTarget = Math.max(0, targetRate - rate);
-  const targetReached = rate >= targetRate;
+  const distanceToTarget = Math.max(0, targetRate - currentRate);
+  const targetReached = currentRate >= targetRate;
 
   useEffect(() => {
-    setRate(currentRate);
-    setUpdatedAt(Date.now());
     setPulseKey((value) => value + 1);
   }, [currentRate]);
 
@@ -43,50 +36,21 @@ export function RateTracker({
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshRate() {
-      try {
-        const response = await fetch("/api/rates", { cache: "no-store" });
-        const payload = (await response.json()) as RateResponse;
-
-        if (!cancelled && typeof payload.rate === "number") {
-          setRate(payload.rate);
-          setUpdatedAt(Date.now());
-          setPulseKey((value) => value + 1);
-        }
-      } catch {
-        // Keep the last known rate visible if polling fails.
-      }
-    }
-
-    const interval = setInterval(refreshRate, POLL_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
-
   return (
     <section className="rounded-md border border-[#d8dee4] bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2">
         <p
           key={pulseKey}
-          className={`agentremit-rate-pulse text-[32px] font-medium leading-tight tracking-normal ${
-            isWatching ? "text-[#24292f]" : "text-[#8c959f]"
-          }`}
+          className="agentremit-rate-pulse text-[32px] font-medium leading-tight tracking-normal text-[#24292f]"
         >
           1 USDC = ₦
-          {rate.toLocaleString("en-NG", {
+          {currentRate.toLocaleString("en-NG", {
             maximumFractionDigits: 2,
           })}
         </p>
         <p className="text-sm text-[#6e7781]">
-          {isWatching
-            ? `Updated ${secondsAgo(updatedAt, now)} seconds ago`
-            : "Agent not active"}
+          {isWatching ? "Agent watching" : "Live market rate"} - Updated{" "}
+          {formatAge(updatedAt, now)}
         </p>
       </div>
 
@@ -153,6 +117,12 @@ function progressFillClass(progress: number, targetReached: boolean): string {
   return "bg-[#8c959f]";
 }
 
-function secondsAgo(updatedAt: number, now: number): number {
-  return Math.max(0, Math.floor((now - updatedAt) / 1000));
+function formatAge(updatedAt: number, now: number): string {
+  const seconds = Math.max(0, Math.floor((now - updatedAt) / 1000));
+
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+
+  return `${Math.floor(seconds / 60)}m ago`;
 }
