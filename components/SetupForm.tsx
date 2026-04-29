@@ -225,6 +225,7 @@ export function SetupForm({ onAgentStarted }: SetupFormProps) {
               className="h-11 rounded-md border border-[#d0d7de] px-3 text-sm font-normal text-[#101418] outline-none transition placeholder:text-[#8c959f] focus:border-[#1a7f37] focus:ring-2 focus:ring-[#1a7f37]/20"
               type="number"
               min={1}
+              step="any"
               inputMode="decimal"
               placeholder={
                 currentRate
