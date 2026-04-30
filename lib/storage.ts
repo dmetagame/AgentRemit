@@ -80,49 +80,65 @@ export type StorageSaveResult = {
   key: string;
   persistedToZeroG: boolean;
   rootHash: string | null;
+  txHash: string | null;
   error: string | null;
+  receipt?: RemittanceReceipt;
 };
 
 export async function saveReceipt(
   receipt: RemittanceReceipt,
 ): Promise<StorageSaveResult> {
   const key = getReceiptKey(receipt);
-  let result: StorageSaveResult = {
-    key,
-    persistedToZeroG: false,
-    rootHash: null,
-    error: null,
-  };
+  let persistedToZeroG = false;
+  let rootHash: string | null = null;
+  let txHash: string | null = null;
+  let storageError: string | null = null;
   const json = JSON.stringify(receipt);
   const padded = padStoragePayload(json);
 
   try {
     const data = new TextEncoder().encode(padded);
     const memData = new MemData(data);
-    const { rootHash } = await uploadToZeroG(memData);
+    const uploadResult = await uploadToZeroG(memData);
 
+    rootHash = uploadResult.rootHash;
+    txHash = uploadResult.txHash;
+    persistedToZeroG = true;
     sessionReceiptRoots.set(key, rootHash);
 
     console.log("[0G Storage] Saved to 0G:", rootHash);
-    result = {
-      key,
-      persistedToZeroG: true,
-      rootHash,
-      error: null,
-    };
   } catch (error) {
     console.log("[0G Storage] Fallback: saved to memory");
-    result = {
-      key,
-      persistedToZeroG: false,
-      rootHash: null,
-      error: errorToMessage(error),
-    };
+    storageError = errorToMessage(error);
   } finally {
-    sessionReceipts.set(key, padded);
+    sessionReceipts.set(
+      key,
+      padStoragePayload(
+        JSON.stringify(
+          withStorageMetadata(receipt, {
+            persistedToZeroG,
+            rootHash,
+            txHash,
+            error: storageError,
+          }),
+        ),
+      ),
+    );
   }
 
-  return result;
+  return {
+    key,
+    persistedToZeroG,
+    rootHash,
+    txHash,
+    error: storageError,
+    receipt: withStorageMetadata(receipt, {
+      persistedToZeroG,
+      rootHash,
+      txHash,
+      error: storageError,
+    }),
+  };
 }
 
 export async function getReceiptHistory(
@@ -167,13 +183,14 @@ export async function appendToAgentLog(
     key,
     persistedToZeroG: false,
     rootHash: null,
+    txHash: null,
     error: null,
   };
 
   try {
     const data = new TextEncoder().encode(padStoragePayload(entry));
     const memData = new MemData(data);
-    const { rootHash } = await uploadToZeroG(memData);
+    const { rootHash, txHash } = await uploadToZeroG(memData);
 
     sessionLogRoots.set(key, rootHash);
 
@@ -182,6 +199,7 @@ export async function appendToAgentLog(
       key,
       persistedToZeroG: true,
       rootHash,
+      txHash,
       error: null,
     };
   } catch (error) {
@@ -190,6 +208,7 @@ export async function appendToAgentLog(
       key,
       persistedToZeroG: false,
       rootHash: null,
+      txHash: null,
       error: errorToMessage(error),
     };
   } finally {
@@ -390,6 +409,24 @@ async function uploadSegmentsBestEffort(
 
 function padStoragePayload(value: string): string {
   return value.padEnd(MIN_STORAGE_SIZE_BYTES, " ");
+}
+
+function withStorageMetadata(
+  receipt: RemittanceReceipt,
+  storage: {
+    persistedToZeroG: boolean;
+    rootHash: string | null;
+    txHash: string | null;
+    error: string | null;
+  },
+): RemittanceReceipt {
+  return {
+    ...receipt,
+    storageProvider: storage.persistedToZeroG ? "0G" : "memory",
+    zeroGRootHash: storage.rootHash ?? undefined,
+    zeroGTxHash: storage.txHash ?? undefined,
+    storageError: storage.error ?? undefined,
+  };
 }
 
 async function loadSeededReceipts(): Promise<RemittanceReceipt[]> {

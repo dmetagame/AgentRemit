@@ -27,15 +27,10 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
-import type { PaymentQuote, SwapResult } from "@/types";
+import type { PaymentQuote, SwapResult, UniswapQuoteSnapshot } from "@/types";
 import { getNgnUsdcRate } from "@/lib/rates";
 
-export interface SwapQuote {
-  expectedUsdc: string;
-  priceImpact: number;
-  route: string;
-  minimumOut: string;
-}
+export type SwapQuote = UniswapQuoteSnapshot;
 
 export interface KeeperHubContractCall {
   contractAddress: Address;
@@ -59,6 +54,7 @@ const SLIPPAGE_BPS = BigInt(50);
 const BPS_DENOMINATOR = BigInt(10_000);
 const CHAIN_ID = sepolia.id;
 
+const NATIVE_ETH_ADDRESS = "0x0000000000000000000000000000000000000000";
 const WETH_ADDRESS = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14";
 const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 const UNISWAP_V3_FACTORY_ADDRESS =
@@ -69,6 +65,8 @@ const UNIVERSAL_ROUTER_ADDRESS =
 
 const COMMAND_V3_SWAP_EXACT_IN = "0x00";
 const COMMAND_WRAP_ETH = "0x0b";
+const UNISWAP_API_BASE_URL =
+  process.env.UNISWAP_API_BASE_URL ?? "https://trade-api.gateway.uniswap.org/v1";
 
 const WETH = new Token(
   CHAIN_ID,
@@ -136,17 +134,32 @@ const universalRouterAbi = parseAbi([
   "function execute(bytes commands, bytes[] inputs, uint256 deadline) payable",
 ]);
 
-export async function getSwapQuote(amountInEth: string): Promise<SwapQuote> {
+export async function getSwapQuote(
+  amountInEth: string,
+  options: { swapper?: string } = {},
+): Promise<SwapQuote> {
   const amountIn = parsePositiveEth(amountInEth);
+
+  if (process.env.UNISWAP_API_KEY && options.swapper && isAddress(options.swapper)) {
+    try {
+      return await quoteWithUniswapApi(amountIn, options.swapper);
+    } catch (error) {
+      console.log("[Uniswap API] Falling back to v3 contract quote:", error);
+    }
+  }
+
   const amountOut = await quoteEthToUsdc(amountIn);
   const minimumOut = applySlippage(amountOut);
   const priceImpact = await calculatePriceImpact(amountIn, amountOut);
 
   return {
+    source: "uniswap-v3-contract",
     expectedUsdc: formatUnits(amountOut, USDC_DECIMALS),
     priceImpact,
     route: "ETH -> WETH -> USDC via Uniswap v3 0.30% on Sepolia",
     minimumOut: formatUnits(minimumOut, USDC_DECIMALS),
+    slippageBps: Number(SLIPPAGE_BPS),
+    quotedAt: new Date().toISOString(),
   };
 }
 
@@ -321,6 +334,87 @@ async function quoteEthToUsdc(amountIn: bigint): Promise<bigint> {
   }
 }
 
+async function quoteWithUniswapApi(
+  amountIn: bigint,
+  swapper: string,
+): Promise<SwapQuote> {
+  const response = await fetch(`${normalizeBaseUrl(UNISWAP_API_BASE_URL)}/quote`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      "x-api-key": process.env.UNISWAP_API_KEY!,
+      "x-universal-router-version": "2.0",
+      "x-permit2-disabled": "true",
+      "x-erc20eth-enabled": "false",
+    },
+    body: JSON.stringify({
+      type: "EXACT_INPUT",
+      amount: amountIn.toString(),
+      tokenInChainId: CHAIN_ID,
+      tokenOutChainId: CHAIN_ID,
+      tokenIn: NATIVE_ETH_ADDRESS,
+      tokenOut: USDC_ADDRESS,
+      swapper,
+      slippageTolerance: Number(SLIPPAGE_BPS) / 100,
+      protocols: ["V3"],
+      routingPreference: "BEST_PRICE",
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+
+    throw new Error(
+      `Uniswap API quote failed with ${response.status}: ${errorBody.slice(0, 300)}`,
+    );
+  }
+
+  const payload = (await response.json()) as Record<string, unknown>;
+  const amountOut = readBigIntFromPaths(payload, [
+    ["quote", "output", "amount"],
+    ["output", "amount"],
+    ["quote", "amountOut"],
+    ["amountOut"],
+    ["quote", "outputAmount"],
+    ["outputAmount"],
+  ]);
+
+  if (amountOut === null || amountOut <= BigInt(0)) {
+    throw new Error("Uniswap API quote did not include a usable output amount");
+  }
+
+  const minimumOut = applySlippage(amountOut);
+
+  return {
+    source: "uniswap-api",
+    expectedUsdc: formatUnits(amountOut, USDC_DECIMALS),
+    minimumOut: formatUnits(minimumOut, USDC_DECIMALS),
+    route: summarizeApiRoute(payload),
+    slippageBps: Number(SLIPPAGE_BPS),
+    priceImpact: readNumberFromPaths(payload, [
+      ["quote", "priceImpact"],
+      ["priceImpact"],
+      ["quote", "priceImpactPercent"],
+      ["priceImpactPercent"],
+    ]),
+    estimatedGas: readStringFromPaths(payload, [
+      ["quote", "gasUseEstimate"],
+      ["gasUseEstimate"],
+      ["quote", "gasFee"],
+      ["gasFee"],
+    ]),
+    quoteId: readStringFromPaths(payload, [
+      ["quoteId"],
+      ["requestId"],
+      ["quote", "quoteId"],
+      ["quote", "requestId"],
+    ]),
+    quotedAt: new Date().toISOString(),
+  };
+}
+
 async function calculatePriceImpact(
   amountIn: bigint,
   amountOut: bigint,
@@ -444,6 +538,104 @@ function normalizeSwapError(error: unknown): Error {
   }
 
   return error instanceof Error ? error : new Error(message);
+}
+
+function readBigIntFromPaths(
+  record: Record<string, unknown>,
+  paths: string[][],
+): bigint | null {
+  for (const path of paths) {
+    const value = readPath(record, path);
+
+    if (typeof value === "string" && /^\d+$/.test(value)) {
+      return BigInt(value);
+    }
+
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return BigInt(Math.trunc(value));
+    }
+  }
+
+  return null;
+}
+
+function readStringFromPaths(
+  record: Record<string, unknown>,
+  paths: string[][],
+): string | undefined {
+  for (const path of paths) {
+    const value = readPath(record, path);
+
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value.toString();
+    }
+  }
+
+  return undefined;
+}
+
+function readNumberFromPaths(
+  record: Record<string, unknown>,
+  paths: string[][],
+): number | undefined {
+  for (const path of paths) {
+    const value = readPath(record, path);
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsed = Number(value);
+
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function readPath(record: Record<string, unknown>, path: string[]): unknown {
+  return path.reduce<unknown>((value, key) => {
+    if (!isRecord(value)) {
+      return undefined;
+    }
+
+    return value[key];
+  }, record);
+}
+
+function summarizeApiRoute(payload: Record<string, unknown>): string {
+  const routeText = readStringFromPaths(payload, [
+    ["routeString"],
+    ["route"],
+    ["quote", "routeString"],
+    ["quote", "route"],
+  ]);
+
+  if (routeText) {
+    return routeText;
+  }
+
+  const routing = readStringFromPaths(payload, [["quote", "routing"], ["routing"]]);
+
+  return routing
+    ? `ETH -> USDC via Uniswap API ${routing}`
+    : "ETH -> USDC via Uniswap API V3 route";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "");
 }
 
 class InsufficientBalanceError extends Error {

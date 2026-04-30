@@ -32,21 +32,56 @@ export interface KeeperJob {
   updatedAt: number;
 }
 
+export interface UniswapQuoteSnapshot {
+  source: "uniswap-api" | "uniswap-v3-contract";
+  expectedUsdc: string;
+  minimumOut: string;
+  route: string;
+  slippageBps: number;
+  priceImpact?: number;
+  estimatedGas?: string;
+  quoteId?: string;
+  quotedAt: string;
+}
+
 export interface RemittanceReceipt {
   id: string;
   agentEnsName: string;
   senderAddress: string;
   recipientAddress: string;
   amountUsdc: string;
+  amountInEth?: string;
   effectiveRateNgn: number;
+  rateSource?: string;
+  rateAsOf?: string;
   keeperJobId: string;
   uniswapTxHash: string;
+  uniswapRoute?: string;
+  uniswapQuoteSource?: UniswapQuoteSnapshot["source"];
+  uniswapQuoteBefore?: UniswapQuoteSnapshot;
+  uniswapQuoteAfter?: UniswapQuoteSnapshot;
+  expectedAmountOutUsdc?: string;
+  minimumAmountOutUsdc?: string;
+  slippageBps?: number;
+  priceImpact?: number;
+  executionStatus?: KeeperJob["status"];
+  zeroGRootHash?: string;
+  zeroGTxHash?: string;
+  storageProvider?: "0G" | "memory" | "demo";
+  storageError?: string;
+  demo?: boolean;
   timestamp: number;
   status: "success" | "failed";
 }
 
 export interface AgentEvent {
   type:
+    | "job_created"
+    | "job_watching"
+    | "job_paused"
+    | "job_resumed"
+    | "job_cancelled"
+    | "target_updated"
     | "rate_update"
     | "threshold_hit"
     | "quote_received"
@@ -69,6 +104,51 @@ export interface AgentStatus {
   startedAt?: string;
   stoppedAt?: string;
   message: string;
+}
+
+export type AgentJobState =
+  | "queued"
+  | "registering"
+  | "watching"
+  | "executing"
+  | "keeper_pending"
+  | "storing"
+  | "paused"
+  | "cancelled"
+  | "done"
+  | "error"
+  | "stopped";
+
+export interface AgentMemoryProof {
+  eventType: AgentEvent["type"];
+  message: string;
+  timestamp: number;
+  key: string;
+  persistedToZeroG: boolean;
+  rootHash: string | null;
+  txHash: string | null;
+  error: string | null;
+}
+
+export interface AgentJob {
+  id: string;
+  config: AgentConfig;
+  state: AgentJobState;
+  message: string;
+  createdAt: number;
+  updatedAt: number;
+  nextRunAt: number;
+  lockedUntil?: number;
+  pausedFromState?: AgentJobState;
+  lastRate?: RateQuote;
+  amountInEth?: string;
+  uniswapQuote?: UniswapQuoteSnapshot;
+  postExecutionQuote?: UniswapQuoteSnapshot;
+  keeperJobId?: string;
+  lastKeeperStatus?: KeeperJob["status"];
+  zeroGMemoryProofs?: AgentMemoryProof[];
+  receipt?: RemittanceReceipt;
+  error?: string;
 }
 
 export interface RateQuote {

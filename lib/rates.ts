@@ -76,6 +76,14 @@ export function watchRate(
       const rate = await getNgnUsdcRate();
       watcher.emit("rate_update", rate);
 
+      if (!isExecutableRate(rate)) {
+        watcher.emit(
+          "watcher_error",
+          new Error("Live rate unavailable; refusing to execute on fallback rate."),
+        );
+        return;
+      }
+
       if (rate.rate >= targetRateNgn) {
         watcher.emit("threshold_hit", rate);
       }
@@ -100,4 +108,19 @@ export function watchRate(
   setTimeout(checkRate, 0);
 
   return watcher;
+}
+
+export function isExecutableRate(rate: RateQuote): boolean {
+  return rate.source !== "fallback" || allowFallbackRateExecution();
+}
+
+function allowFallbackRateExecution(): boolean {
+  const keeperMode = process.env.KEEPERHUB_MODE?.toLowerCase();
+
+  return (
+    process.env.AGENTREMIT_ALLOW_FALLBACK_RATE_EXECUTION === "true" ||
+    keeperMode === "mock" ||
+    keeperMode === "dev" ||
+    keeperMode === "local"
+  );
 }

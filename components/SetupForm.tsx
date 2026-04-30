@@ -2,14 +2,12 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { isAddress } from "viem";
-import { useAccount } from "wagmi";
-import type { AgentConfig } from "@/types";
+import { useAccount, useSignMessage } from "wagmi";
+import { buildSignedActionMessage } from "@/lib/auth";
+import type { AgentConfig, AgentJob } from "@/types";
 
 type SetupFormProps = {
-  onAgentStarted: (
-    config: AgentConfig,
-    eventStream?: ReadableStream<Uint8Array> | null,
-  ) => void;
+  onAgentStarted: (config: AgentConfig, job: AgentJob, durable?: boolean) => void;
   currentRate?: number | null;
 };
 
@@ -18,8 +16,16 @@ type ResolveResponse = {
   error?: string;
 };
 
+type DeployAgentResponse = {
+  jobId?: string;
+  job?: AgentJob;
+  durable?: boolean;
+  error?: string;
+};
+
 export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
   const { address: ownerAddress } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [name, setName] = useState("");
   const [recipientInput, setRecipientInput] = useState("");
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
@@ -32,7 +38,7 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const subname = useMemo(() => generateAgentSubname(name), [name]);
-  const generatedEnsName = `${subname}.agentremit.eth`;
+  const generatedAgentHandle = `${subname}.agentremit.0g`;
   const trimmedRecipient = recipientInput.trim();
   const isEnsRecipient = trimmedRecipient.toLowerCase().endsWith(".eth");
   const recipientAddress = isEnsRecipient ? resolvedAddress : trimmedRecipient;
@@ -98,7 +104,7 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
     }
 
     const config: AgentConfig = {
-      ensName: generatedEnsName,
+      ensName: generatedAgentHandle,
       ownerAddress,
       recipientAddress,
       amountUsdc: amountUsdc.trim(),
@@ -109,12 +115,27 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
     setSubmitError(null);
 
     try {
+      const signedAt = new Date().toISOString();
+      const nonce = createNonce();
+      const message = buildSignedActionMessage({
+        action: "agent:deploy",
+        payload: config,
+        signedAt,
+        nonce,
+      });
+      const signature = await signMessageAsync({ message });
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+          action: "agent:deploy",
+          payload: config,
+          signedAt,
+          nonce,
+          signature,
+        }),
       });
 
       if (!response.ok) {
@@ -124,7 +145,13 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
         throw new Error(payload?.error ?? "Unable to start agent.");
       }
 
-      onAgentStarted(config, response.body);
+      const payload = (await response.json()) as DeployAgentResponse;
+
+      if (!payload.jobId || !payload.job) {
+        throw new Error(payload.error ?? "Agent job was not created.");
+      }
+
+      onAgentStarted(config, payload.job, payload.durable);
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : "Unable to start agent.",
@@ -141,7 +168,7 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
     >
       <div className="grid gap-6">
         <label className="grid gap-2 text-sm font-medium text-[#24292f]">
-          Your name
+          Agent label
           <input
             className="h-11 rounded-md border border-[#d0d7de] px-3 text-sm font-normal text-[#101418] outline-none transition placeholder:text-[#8c959f] focus:border-[#1a7f37] focus:ring-2 focus:ring-[#1a7f37]/20"
             value={name}
@@ -149,7 +176,7 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
             autoComplete="name"
           />
           <span className="font-mono text-xs font-normal text-[#6e7781]">
-            {generatedEnsName}
+            {generatedAgentHandle}
           </span>
         </label>
 
@@ -228,6 +255,14 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
       </div>
     </form>
   );
+}
+
+function createNonce(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function generateAgentSubname(value: string): string {

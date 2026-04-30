@@ -23,7 +23,7 @@ export class RemittanceAgent extends EventEmitter {
   private rateWatcher: rates.RateWatcher | null = null;
   private isRunning = false;
   private status: AgentRuntimeStatus = "idle";
-  private lastRateNgn: number | null = null;
+  private lastRateQuote: Types.RateQuote | null = null;
 
   constructor(config: Types.AgentConfig) {
     super();
@@ -59,7 +59,7 @@ export class RemittanceAgent extends EventEmitter {
 
       this.rateWatcher = rates.watchRate(this.config.targetRateNgn);
       this.rateWatcher.on("rate_update", (rate: Types.RateQuote) => {
-        this.lastRateNgn = rate.rate;
+        this.lastRateQuote = rate;
         this.emitAgentEvent({
           type: "rate_update",
           message: `Current rate: ${rate.rate} NGN per USDC`,
@@ -67,7 +67,7 @@ export class RemittanceAgent extends EventEmitter {
         });
       });
       this.rateWatcher.once("threshold_hit", (rate: Types.RateQuote) => {
-        this.lastRateNgn = rate.rate;
+        this.lastRateQuote = rate;
         this.stopWatcherOnly();
         void this.executeRemittance();
       });
@@ -130,15 +130,18 @@ export class RemittanceAgent extends EventEmitter {
       }
 
       const receipt = this.buildReceipt(finalJob);
-      await storage.saveReceipt(receipt);
+      const storageResult = await storage.saveReceipt(receipt);
+      const savedReceipt = storageResult.receipt ?? receipt;
 
       this.emitAgentEvent({
         type: "receipt_saved",
-        message: "Receipt saved to 0G Storage",
-        data: { receipt },
+        message: storageResult.persistedToZeroG
+          ? "Receipt saved to 0G Storage"
+          : "Receipt saved to memory fallback",
+        data: { receipt: savedReceipt, storage: storageResult },
       });
 
-      await ens.updateAgentStats(this.config.ensName, receipt);
+      await ens.updateAgentStats(this.config.ensName, savedReceipt);
 
       this.status = "done";
       this.isRunning = false;
@@ -216,7 +219,9 @@ export class RemittanceAgent extends EventEmitter {
       senderAddress: this.config.ownerAddress,
       recipientAddress: this.config.recipientAddress,
       amountUsdc: this.config.amountUsdc,
-      effectiveRateNgn: this.lastRateNgn ?? this.config.targetRateNgn,
+      effectiveRateNgn: this.lastRateQuote?.rate ?? this.config.targetRateNgn,
+      rateSource: this.lastRateQuote?.source,
+      rateAsOf: this.lastRateQuote?.asOf,
       keeperJobId: job.jobId,
       uniswapTxHash: job.txHash ?? "",
       timestamp,

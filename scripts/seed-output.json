@@ -20,8 +20,11 @@
       "recipientAddress": "0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53",
       "amountUsdc": "50",
       "effectiveRateNgn": 1584,
+      "rateSource": "demo",
       "keeperJobId": "kh_demo_001",
       "uniswapTxHash": "0x1d81a492dc5de0d1d1c459a9ea579d332f6d753333383ea9c65cf2942ab47f34",
+      "storageProvider": "demo",
+      "demo": true,
       "timestamp": 1777098686136,
       "status": "success"
     },
@@ -32,8 +35,11 @@
       "recipientAddress": "0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53",
       "amountUsdc": "100",
       "effectiveRateNgn": 1612,
+      "rateSource": "demo",
       "keeperJobId": "kh_demo_002",
       "uniswapTxHash": "0xca7ac5cc53c457b4569a167d9781fda02ec84d816e29518147725994ed22377c",
+      "storageProvider": "demo",
+      "demo": true,
       "timestamp": 1777185086136,
       "status": "success"
     },
@@ -44,8 +50,11 @@
       "recipientAddress": "0xEE3eA6f858aE84dD6959f241DfC257a2f8fA3f53",
       "amountUsdc": "200",
       "effectiveRateNgn": 1620,
+      "rateSource": "demo",
       "keeperJobId": "kh_demo_003",
       "uniswapTxHash": "0x46eb929ea01ad1fe46e908d8bf315be3acf98301fb47031e5bef963bead3e166",
+      "storageProvider": "demo",
+      "demo": true,
       "timestamp": 1777271486136,
       "status": "success"
     }

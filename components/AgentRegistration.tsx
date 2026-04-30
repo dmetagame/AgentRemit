@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useAccount, useSignMessage } from "wagmi";
+import { buildSignedActionMessage } from "@/lib/auth";
 
 type RegisterResponse = {
   ensName?: string;
@@ -17,6 +19,8 @@ type RegisterResponse = {
 };
 
 export function AgentRegistration() {
+  const { address: ownerAddress } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [recipientName, setRecipientName] = useState("Ada");
   const [recipientAddress, setRecipientAddress] = useState("");
   const [amountUsdc, setAmountUsdc] = useState("100");
@@ -35,21 +39,42 @@ export function AgentRegistration() {
     setResult(null);
 
     try {
+      if (!ownerAddress) {
+        throw new Error("Connect a wallet before registering an ENS agent.");
+      }
+
+      const payload = {
+        recipientName,
+        ownerAddress,
+        recipientAddress,
+        amountUsdc,
+        targetRateNgn: Number(targetRateNgn),
+      };
+      const signedAt = new Date().toISOString();
+      const nonce = createNonce();
+      const message = buildSignedActionMessage({
+        action: "ens:register",
+        payload,
+        signedAt,
+        nonce,
+      });
+      const signature = await signMessageAsync({ message });
       const response = await fetch("/api/ens", {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          recipientName,
-          recipientAddress,
-          amountUsdc,
-          targetRateNgn: Number(targetRateNgn),
+          action: "ens:register",
+          payload,
+          signedAt,
+          nonce,
+          signature,
         }),
       });
-      const payload = (await response.json()) as RegisterResponse;
+      const responsePayload = (await response.json()) as RegisterResponse;
 
-      setResult(payload);
+      setResult(responsePayload);
     } catch (error) {
       setResult({
         error:
@@ -152,6 +177,14 @@ export function AgentRegistration() {
       ) : null}
     </section>
   );
+}
+
+function createNonce(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function generateAgentNamePreview(recipientName: string): string {

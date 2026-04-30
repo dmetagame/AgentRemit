@@ -5,6 +5,7 @@ import type { RemittanceReceipt } from "@/types";
 
 type ReceiptsTableProps = {
   agentEnsName: string;
+  refreshKey?: number;
 };
 
 type ReceiptsResponse = {
@@ -12,12 +13,13 @@ type ReceiptsResponse = {
   error?: string;
 };
 
-export function ReceiptsTable({ agentEnsName }: ReceiptsTableProps) {
+export function ReceiptsTable({ agentEnsName, refreshKey = 0 }: ReceiptsTableProps) {
   const [receipts, setReceipts] = useState<RemittanceReceipt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const keeperHubExplorerBase = process.env.NEXT_PUBLIC_KEEPERHUB_EXPLORER_URL;
   const zeroGExplorerBase = process.env.NEXT_PUBLIC_ZEROG_EXPLORER_URL;
+  const txExplorerBase = process.env.NEXT_PUBLIC_SEPOLIA_EXPLORER_URL;
   const sortedReceipts = useMemo(
     () => [...receipts].sort((a, b) => b.timestamp - a.timestamp),
     [receipts],
@@ -66,7 +68,7 @@ export function ReceiptsTable({ agentEnsName }: ReceiptsTableProps) {
     }
 
     return () => abortController.abort();
-  }, [agentEnsName]);
+  }, [agentEnsName, refreshKey]);
 
   return (
     <section className="rounded-md border border-[#d8dee4] bg-white shadow-sm">
@@ -94,10 +96,10 @@ export function ReceiptsTable({ agentEnsName }: ReceiptsTableProps) {
             <thead>
               <tr className="border-b border-[#d8dee4] bg-[#f6f8fa] text-xs font-semibold uppercase text-[#6e7781]">
                 <th className="px-5 py-3">Date</th>
-                <th className="px-5 py-3">Amount</th>
-                <th className="px-5 py-3">Rate</th>
+                <th className="px-5 py-3">Transfer</th>
                 <th className="px-5 py-3">Recipient</th>
-                <th className="px-5 py-3">KeeperHub Job</th>
+                <th className="px-5 py-3">Uniswap Quote</th>
+                <th className="px-5 py-3">Execution</th>
                 <th className="px-5 py-3">0G Receipt</th>
                 <th className="px-5 py-3">Status</th>
               </tr>
@@ -108,15 +110,22 @@ export function ReceiptsTable({ agentEnsName }: ReceiptsTableProps) {
                   <td className="whitespace-nowrap px-5 py-4 text-[13px]">
                     {formatDate(receipt.timestamp)}
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-[13px]">
-                    {receipt.amountUsdc} USDC
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-[13px]">
-                    ₦
-                    {receipt.effectiveRateNgn.toLocaleString("en-NG", {
-                      maximumFractionDigits: 0,
-                    })}
-                    /USDC
+                  <td className="min-w-[150px] px-5 py-4 text-[13px]">
+                    <p className="font-semibold text-[#24292f]">
+                      {receipt.amountUsdc} USDC
+                    </p>
+                    <p className="mt-1 text-[#57606a]">
+                      ₦
+                      {receipt.effectiveRateNgn.toLocaleString("en-NG", {
+                        maximumFractionDigits: 0,
+                      })}
+                      /USDC
+                    </p>
+                    {receipt.amountInEth ? (
+                      <p className="mt-1 text-[#6e7781]">
+                        Input {receipt.amountInEth} ETH
+                      </p>
+                    ) : null}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4">
                     <div className="flex items-center gap-2">
@@ -132,38 +141,21 @@ export function ReceiptsTable({ agentEnsName }: ReceiptsTableProps) {
                       </button>
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-[13px]">
-                    {keeperHubExplorerBase ? (
-                      <a
-                        className="font-medium text-[#0969da] hover:underline"
-                        href={joinUrl(keeperHubExplorerBase, receipt.keeperJobId)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {receipt.keeperJobId.slice(0, 8)}
-                      </a>
-                    ) : (
-                      <span className="text-[#57606a]">
-                        {receipt.keeperJobId.slice(0, 8)}
-                      </span>
-                    )}
+                  <td className="min-w-[260px] px-5 py-4 text-[13px]">
+                    <QuoteDetails receipt={receipt} />
+                  </td>
+                  <td className="min-w-[190px] px-5 py-4 text-[13px]">
+                    <ExecutionDetails
+                      receipt={receipt}
+                      keeperHubExplorerBase={keeperHubExplorerBase}
+                      txExplorerBase={txExplorerBase}
+                    />
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-[13px]">
-                    {zeroGExplorerBase ? (
-                      <a
-                        className="font-medium text-[#0969da] hover:underline"
-                        href={joinUrl(
-                          zeroGExplorerBase,
-                          encodeURIComponent(getZeroGReceiptKey(receipt)),
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        view
-                      </a>
-                    ) : (
-                      <span className="text-[#6e7781]">view</span>
-                    )}
+                    <StorageProof
+                      receipt={receipt}
+                      zeroGExplorerBase={zeroGExplorerBase}
+                    />
                   </td>
                   <td className="whitespace-nowrap px-5 py-4">
                     <StatusBadge status={receipt.status} />
@@ -176,9 +168,148 @@ export function ReceiptsTable({ agentEnsName }: ReceiptsTableProps) {
       </div>
 
       <p className="border-t border-[#d8dee4] px-5 py-3 text-[11px] text-[#6e7781]">
-        Powered by 0G Storage
+        0G Storage proof is shown when a live root hash is available.
       </p>
     </section>
+  );
+}
+
+function StorageProof({
+  receipt,
+  zeroGExplorerBase,
+}: {
+  receipt: RemittanceReceipt;
+  zeroGExplorerBase?: string;
+}) {
+  if (receipt.demo || receipt.storageProvider === "demo") {
+    return <span className="text-[#6e7781]">demo seed</span>;
+  }
+
+  if (receipt.zeroGRootHash) {
+    const label = truncateHash(receipt.zeroGRootHash);
+
+    return (
+      <div className="grid gap-1">
+        {zeroGExplorerBase ? (
+          <a
+            className="font-medium text-[#0969da] hover:underline"
+            href={joinUrl(zeroGExplorerBase, receipt.zeroGRootHash)}
+            target="_blank"
+            rel="noreferrer"
+            title={receipt.zeroGRootHash}
+          >
+            root {label}
+          </a>
+        ) : (
+          <span className="font-mono text-[#57606a]" title={receipt.zeroGRootHash}>
+            root {label}
+          </span>
+        )}
+        {receipt.zeroGTxHash ? (
+          <span className="font-mono text-[11px] text-[#6e7781]">
+            tx {truncateHash(receipt.zeroGTxHash)}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (receipt.storageProvider === "memory") {
+    return <span className="text-[#bf8700]">memory fallback</span>;
+  }
+
+  return <span className="text-[#6e7781]">no proof</span>;
+}
+
+function QuoteDetails({ receipt }: { receipt: RemittanceReceipt }) {
+  const before = receipt.uniswapQuoteBefore;
+  const after = receipt.uniswapQuoteAfter;
+  const expected = receipt.expectedAmountOutUsdc ?? before?.expectedUsdc;
+  const minimum = receipt.minimumAmountOutUsdc ?? before?.minimumOut;
+  const source = receipt.uniswapQuoteSource ?? before?.source;
+  const route = receipt.uniswapRoute ?? before?.route;
+
+  return (
+    <div className="grid gap-1.5">
+      <p className="font-semibold text-[#24292f]">
+        {expected ? `${expected} USDC expected` : "Quote unavailable"}
+      </p>
+      {minimum ? (
+        <p className="text-[#57606a]">Min after slippage {minimum} USDC</p>
+      ) : null}
+      <p className="text-[#57606a]">
+        {source === "uniswap-api" ? "Uniswap API" : "Uniswap v3 contract"}
+        {typeof receipt.slippageBps === "number"
+          ? ` · ${formatBps(receipt.slippageBps)} slippage`
+          : ""}
+      </p>
+      {route ? <p className="text-[#6e7781]">{route}</p> : null}
+      {after ? (
+        <p className="text-[#6e7781]">
+          After confirmation quote {after.expectedUsdc} USDC
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ExecutionDetails({
+  receipt,
+  keeperHubExplorerBase,
+  txExplorerBase,
+}: {
+  receipt: RemittanceReceipt;
+  keeperHubExplorerBase?: string;
+  txExplorerBase?: string;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <HashLink
+        label="Keeper"
+        value={receipt.keeperJobId}
+        baseUrl={keeperHubExplorerBase}
+      />
+      {receipt.uniswapTxHash ? (
+        <HashLink
+          label="Tx"
+          value={receipt.uniswapTxHash}
+          baseUrl={txExplorerBase}
+        />
+      ) : (
+        <span className="text-[#6e7781]">Tx pending</span>
+      )}
+      {receipt.executionStatus ? (
+        <span className="text-[#6e7781]">Keeper status {receipt.executionStatus}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function HashLink({
+  label,
+  value,
+  baseUrl,
+}: {
+  label: string;
+  value: string;
+  baseUrl?: string;
+}) {
+  const renderedValue = value.length > 14 ? truncateHash(value) : value;
+
+  return baseUrl ? (
+    <a
+      className="font-medium text-[#0969da] hover:underline"
+      href={joinUrl(baseUrl, value)}
+      target="_blank"
+      rel="noreferrer"
+      title={value}
+    >
+      {label} {renderedValue}
+    </a>
+  ) : (
+    <span className="font-mono text-[#57606a]" title={value}>
+      {label} {renderedValue}
+    </span>
   );
 }
 
@@ -211,12 +342,16 @@ function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function copyText(value: string) {
-  void navigator.clipboard?.writeText(value);
+function truncateHash(hash: string): string {
+  return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
 }
 
-function getZeroGReceiptKey(receipt: RemittanceReceipt): string {
-  return `agentremit:receipts:${receipt.agentEnsName}:${receipt.timestamp}`;
+function formatBps(value: number): string {
+  return `${(value / 100).toFixed(2)}%`;
+}
+
+function copyText(value: string) {
+  void navigator.clipboard?.writeText(value);
 }
 
 function joinUrl(baseUrl: string, path: string): string {

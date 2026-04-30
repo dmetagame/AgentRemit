@@ -103,39 +103,12 @@ export async function pollJobStatus(
   jobId: string,
   onUpdate: (job: KeeperJob) => void,
 ): Promise<KeeperJob> {
-  const mockJob = mockKeeperJobs.get(jobId);
-
-  if (mockJob) {
-    const executing = {
-      ...mockJob,
-      status: "executing" as const,
-      updatedAt: Date.now(),
-    };
-    mockKeeperJobs.set(jobId, executing);
-    onUpdate(executing);
-    await delay(1200);
-
-    const confirmed = {
-      ...executing,
-      status: "confirmed" as const,
-      txHash: makeMockTransactionHash(jobId),
-      updatedAt: Date.now(),
-    };
-    mockKeeperJobs.set(jobId, confirmed);
-    onUpdate(confirmed);
-
-    return confirmed;
-  }
-
   const startedAt = Date.now();
   const timeoutMs = 5 * 60 * 1000;
   let lastStatus: KeeperJob["status"] | undefined;
 
   while (Date.now() - startedAt < timeoutMs) {
-    const payload = await keeperHubRequest<unknown>(
-      `/execute/${encodeURIComponent(jobId)}/status`,
-    );
-    const job = normalizeKeeperJob(unwrapKeeperHubPayload(payload), jobId);
+    const job = await getRemittanceJobStatus(jobId);
 
     if (job.status !== lastStatus) {
       onUpdate(job);
@@ -150,6 +123,41 @@ export async function pollJobStatus(
   }
 
   throw new Error(`KeeperHub job ${jobId} timed out after 5 minutes`);
+}
+
+export async function getRemittanceJobStatus(jobId: string): Promise<KeeperJob> {
+  const mockJob = mockKeeperJobs.get(jobId);
+
+  if (mockJob) {
+    if (mockJob.status === "pending") {
+      const executing = {
+        ...mockJob,
+        status: "executing" as const,
+        updatedAt: Date.now(),
+      };
+      mockKeeperJobs.set(jobId, executing);
+      return executing;
+    }
+
+    if (mockJob.status === "executing") {
+      const confirmed = {
+        ...mockJob,
+        status: "confirmed" as const,
+        txHash: makeMockTransactionHash(jobId),
+        updatedAt: Date.now(),
+      };
+      mockKeeperJobs.set(jobId, confirmed);
+      return confirmed;
+    }
+
+    return mockJob;
+  }
+
+  const payload = await keeperHubRequest<unknown>(
+    `/execute/${encodeURIComponent(jobId)}/status`,
+  );
+
+  return normalizeKeeperJob(unwrapKeeperHubPayload(payload), jobId);
 }
 
 export async function getJobHistory(agentEnsName: string): Promise<KeeperJob[]> {

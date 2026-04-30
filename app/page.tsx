@@ -1,18 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AgentControls } from "@/components/AgentControls";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { ConnectButton as ConnectWalletButton } from "@/components/ConnectButton";
 import { RateTracker } from "@/components/RateTracker";
 import { ReceiptsTable } from "@/components/ReceiptsTable";
 import { SetupForm } from "@/components/SetupForm";
-import type { AgentConfig, AgentEvent, RateQuote } from "@/types";
+import type { AgentConfig, AgentEvent, AgentJob, RateQuote } from "@/types";
 
 type DashboardState =
   | "idle"
   | "configuring"
   | "watching"
   | "executing"
+  | "paused"
+  | "cancelled"
   | "done"
   | "error";
 
@@ -21,17 +24,27 @@ type RateResponse = {
   asOf?: string;
 };
 
+type JobResponse = {
+  job?: AgentJob;
+  durable?: boolean;
+  error?: string;
+};
+
 const DEFAULT_RATE = 1500;
 const DEFAULT_TARGET_SPREAD = 100;
 const RATE_POLL_INTERVAL_MS = 30_000;
-const SEEDED_AGENT_ENS_NAME = "sends-ada-home.agentremit.eth";
+const SEEDED_AGENT_HANDLE = "sends-ada-home.agentremit.eth";
 
 export default function Home() {
   const [state, setState] = useState<DashboardState>("idle");
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [activeJob, setActiveJob] = useState<AgentJob | null>(null);
+  const [jobDurable, setJobDurable] = useState(false);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [currentRate, setCurrentRate] = useState(DEFAULT_RATE);
   const [rateUpdatedAt, setRateUpdatedAt] = useState(() => Date.now());
+  const [receiptsRefreshKey, setReceiptsRefreshKey] = useState(0);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,8 +83,73 @@ export default function Home() {
     setState("configuring");
   }, []);
 
+  const applyJobToDashboard = useCallback((job: AgentJob, durable?: boolean) => {
+    setActiveJob(job);
+    setAgentConfig(job.config);
+    setState(mapJobState(job.state));
+
+    if (typeof durable === "boolean") {
+      setJobDurable(durable);
+    }
+
+    if (job.receipt) {
+      setReceiptsRefreshKey((value) => value + 1);
+    }
+  }, []);
+
+  const loadJob = useCallback(
+    async (jobId: string) => {
+      const response = await fetch(`/api/agent/jobs/${encodeURIComponent(jobId)}`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as JobResponse;
+
+      if (!response.ok || !payload.job) {
+        throw new Error(payload.error ?? "Unable to load agent job.");
+      }
+
+      applyJobToDashboard(payload.job, payload.durable);
+    },
+    [applyJobToDashboard],
+  );
+
   const handleAgentEvent = useCallback((event: AgentEvent) => {
     setEvents((existing) => [...existing, event]);
+
+    if (event.type === "job_created" || event.type === "job_watching") {
+      setState("watching");
+      return;
+    }
+
+    if (event.type === "job_paused") {
+      setState("paused");
+      return;
+    }
+
+    if (event.type === "job_resumed") {
+      setState("watching");
+      return;
+    }
+
+    if (event.type === "job_cancelled") {
+      setState("cancelled");
+      return;
+    }
+
+    if (event.type === "target_updated") {
+      const targetRateNgn =
+        typeof event.data?.targetRateNgn === "number"
+          ? event.data.targetRateNgn
+          : null;
+
+      if (targetRateNgn) {
+        setAgentConfig((config) =>
+          config ? { ...config, targetRateNgn } : config,
+        );
+      }
+
+      return;
+    }
 
     if (event.type === "rate_update") {
       setState((current) =>
@@ -98,6 +176,9 @@ export default function Home() {
 
     if (event.type === "job_confirmed" || event.type === "receipt_saved") {
       setState(event.type === "receipt_saved" ? "done" : "executing");
+      if (event.type === "receipt_saved") {
+        setReceiptsRefreshKey((value) => value + 1);
+      }
       return;
     }
 
@@ -121,26 +202,59 @@ export default function Home() {
   }, []);
 
   const handleAgentStarted = useCallback(
-    (config: AgentConfig, eventStream?: ReadableStream<Uint8Array> | null) => {
+    (config: AgentConfig, job: AgentJob, durable?: boolean) => {
       setAgentConfig(config);
+      setActiveJob(job);
+      setJobDurable(Boolean(durable));
       setEvents([]);
       setState("watching");
+      eventSourceRef.current?.close();
 
-      if (eventStream) {
-        void readAgentEvents(eventStream, handleAgentEvent, () => {
-          setState((current) =>
-            current === "watching" || current === "executing" ? "done" : current,
-          );
-        });
-      }
+      const eventSource = new EventSource(
+        `/api/agent/jobs/${encodeURIComponent(job.id)}/events`,
+      );
+
+      eventSource.addEventListener("agent_event", (messageEvent) => {
+        const event = parseEventSourceMessage(messageEvent);
+
+        if (event) {
+          handleAgentEvent(event);
+        }
+      });
+      eventSource.onerror = () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+      };
+      eventSourceRef.current = eventSource;
     },
     [handleAgentEvent],
   );
 
+  const activeJobId = activeJob?.id;
+  const activeJobState = activeJob?.state;
+
+  useEffect(() => {
+    if (!activeJobId || !activeJobState || isTerminalJobState(activeJobState)) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      void loadJob(activeJobId).catch(() => undefined);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [activeJobId, activeJobState, loadJob]);
+
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+    };
+  }, []);
+
   const targetRate =
     agentConfig?.targetRateNgn ?? Math.round(currentRate + DEFAULT_TARGET_SPREAD);
   const isWatching = state === "watching" || state === "executing";
-  const receiptsAgentEnsName = agentConfig?.ensName ?? SEEDED_AGENT_ENS_NAME;
+  const receiptsAgentHandle = agentConfig?.ensName ?? SEEDED_AGENT_HANDLE;
 
   return (
     <main className="min-h-screen bg-[#f7f8fa] text-[#101418]">
@@ -177,10 +291,16 @@ export default function Home() {
             onAgentStarted={handleAgentStarted}
           />
 
+          <AgentControls
+            job={activeJob}
+            durable={jobDurable}
+            onJobUpdated={applyJobToDashboard}
+          />
+
           {agentConfig ? (
             <div className="rounded-md border border-[#d8dee4] bg-white p-5 shadow-sm">
               <p className="text-xs font-medium uppercase text-[#6e7781]">
-                Your agent identity
+                0G agent handle
               </p>
               <p className="mt-2 break-all font-mono text-sm text-[#24292f]">
                 {agentConfig.ensName}
@@ -211,61 +331,19 @@ export default function Home() {
 
           <ActivityFeed events={events} status={activityStatus(state)} />
 
-          <ReceiptsTable agentEnsName={receiptsAgentEnsName} />
+          <ReceiptsTable
+            agentEnsName={receiptsAgentHandle}
+            refreshKey={receiptsRefreshKey}
+          />
         </section>
       </div>
     </main>
   );
 }
 
-async function readAgentEvents(
-  eventStream: ReadableStream<Uint8Array>,
-  onEvent: (event: AgentEvent) => void,
-  onDone: () => void,
-) {
-  const reader = eventStream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
+function parseEventSourceMessage(event: MessageEvent): AgentEvent | null {
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split("\n\n");
-      buffer = blocks.pop() ?? "";
-
-      for (const block of blocks) {
-        const event = parseSseBlock(block);
-
-        if (event) {
-          onEvent(event);
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-    onDone();
-  }
-}
-
-function parseSseBlock(block: string): AgentEvent | null {
-  const data = block
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n");
-
-  if (!data) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(data) as AgentEvent;
+    return JSON.parse(event.data) as AgentEvent;
   } catch {
     return null;
   }
@@ -311,7 +389,7 @@ function readTimestamp(value: string | undefined): number | null {
 }
 
 function activityStatus(state: DashboardState) {
-  if (state === "executing" || state === "watching") {
+  if (state === "executing" || state === "watching" || state === "paused") {
     return state;
   }
 
@@ -323,7 +401,48 @@ function activityStatus(state: DashboardState) {
     return "done";
   }
 
+  if (state === "cancelled") {
+    return "cancelled";
+  }
+
   return "idle";
+}
+
+function mapJobState(state: AgentJob["state"]): DashboardState {
+  if (state === "paused") {
+    return "paused";
+  }
+
+  if (state === "cancelled" || state === "stopped") {
+    return "cancelled";
+  }
+
+  if (state === "done") {
+    return "done";
+  }
+
+  if (state === "error") {
+    return "error";
+  }
+
+  if (
+    state === "executing" ||
+    state === "keeper_pending" ||
+    state === "storing"
+  ) {
+    return "executing";
+  }
+
+  return "watching";
+}
+
+function isTerminalJobState(state: AgentJob["state"]): boolean {
+  return (
+    state === "done" ||
+    state === "error" ||
+    state === "cancelled" ||
+    state === "stopped"
+  );
 }
 
 function leftColumnMessage(state: DashboardState): string {
@@ -337,6 +456,14 @@ function leftColumnMessage(state: DashboardState): string {
 
   if (state === "executing") {
     return "The target has been reached. Settlement is being prepared.";
+  }
+
+  if (state === "paused") {
+    return "Your durable agent job is paused. Resume it when you want rate monitoring to continue.";
+  }
+
+  if (state === "cancelled") {
+    return "This agent job is cancelled. Deploy another agent to start a new remittance watch.";
   }
 
   if (state === "done") {
@@ -363,6 +490,14 @@ function rightColumnHeading(state: DashboardState): string {
     return "Action needed";
   }
 
+  if (state === "paused") {
+    return "Paused";
+  }
+
+  if (state === "cancelled") {
+    return "Cancelled";
+  }
+
   return "Rate watch";
 }
 
@@ -377,6 +512,14 @@ function rightColumnMessage(state: DashboardState): string {
 
   if (state === "executing") {
     return "The agent is submitting and tracking the payment job.";
+  }
+
+  if (state === "paused") {
+    return "The server-side job is retained, but the worker will not advance it until resumed.";
+  }
+
+  if (state === "cancelled") {
+    return "The server-side job stopped advancing and its cancellation was recorded.";
   }
 
   if (state === "done") {

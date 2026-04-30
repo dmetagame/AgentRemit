@@ -5,10 +5,16 @@ import type { AgentEvent } from "@/types";
 
 type ActivityFeedProps = {
   events: AgentEvent[];
-  status?: "idle" | "watching" | "executing" | "done" | "error";
+  status?: "idle" | "watching" | "executing" | "paused" | "cancelled" | "done" | "error";
 };
 
 const dotClasses: Record<AgentEvent["type"], string> = {
+  job_created: "bg-[#0969da]",
+  job_watching: "bg-[#1a7f37]",
+  job_paused: "bg-[#bf8700]",
+  job_resumed: "bg-[#1a7f37]",
+  job_cancelled: "bg-[#cf222e]",
+  target_updated: "bg-[#8250df]",
   rate_update: "bg-[#8c959f]",
   threshold_hit: "bg-[#bf8700]",
   quote_received: "bg-[#0969da]",
@@ -23,6 +29,7 @@ export function ActivityFeed({ events, status }: ActivityFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const shouldShowWatching = events.length === 0 && status === "watching";
+  const shouldShowPaused = events.length === 0 && status === "paused";
   const orderedEvents = useMemo(() => events, [events]);
 
   useEffect(() => {
@@ -51,7 +58,12 @@ export function ActivityFeed({ events, status }: ActivityFeedProps) {
       </div>
 
       <div ref={scrollRef} className="max-h-[400px] overflow-y-auto">
-        {shouldShowWatching ? (
+        {shouldShowPaused ? (
+          <div className="flex items-center gap-3 px-5 py-4 text-[13px] text-[#57606a]">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#bf8700]" />
+            Agent paused.
+          </div>
+        ) : shouldShowWatching ? (
           <div className="flex items-center gap-3 px-5 py-4 text-[13px] text-[#57606a]">
             <span className="h-2.5 w-2.5 rounded-full bg-[#8c959f] opacity-80 animate-pulse" />
             Watching rates...
@@ -107,12 +119,21 @@ export function ActivityFeed({ events, status }: ActivityFeedProps) {
 }
 
 function rowTone(type: AgentEvent["type"]): string {
-  if (type === "threshold_hit") {
+  if (type === "threshold_hit" || type === "job_paused") {
     return "bg-[#fff8c5]";
   }
 
-  if (type === "job_confirmed" || type === "receipt_saved") {
+  if (
+    type === "job_watching" ||
+    type === "job_resumed" ||
+    type === "job_confirmed" ||
+    type === "receipt_saved"
+  ) {
     return "bg-[#dafbe1]";
+  }
+
+  if (type === "job_cancelled" || type === "error") {
+    return "bg-[#fff1f1]";
   }
 
   return "bg-white";

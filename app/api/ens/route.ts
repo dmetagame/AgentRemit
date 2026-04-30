@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { privateKeyToAccount } from "viem/accounts";
+import {
+  AuthError,
+  addressesEqual,
+  authErrorResponse,
+  verifySignedAction,
+} from "@/lib/auth";
 import {
   generateAgentName,
   getAgentProfile,
@@ -64,83 +69,108 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as RegisterAgentBody;
-  const ownerAddress = body.ownerAddress ?? getDefaultOwnerAddress();
-  const subname =
-    body.subname ??
-    (body.recipientName ? generateAgentName(body.recipientName) : undefined);
-
-  if (!subname) {
-    return NextResponse.json(
-      { error: "Provide subname or recipientName." },
-      { status: 400 },
-    );
-  }
-
-  if (!body.recipientAddress || !body.amountUsdc || !body.targetRateNgn) {
-    return NextResponse.json(
-      {
-        error:
-          "recipientAddress, amountUsdc, and targetRateNgn are required.",
-      },
-      { status: 400 },
-    );
-  }
-
-  if (!ownerAddress) {
-    return NextResponse.json(
-      { error: "PRIVATE_KEY is required to derive the owner address." },
-      { status: 500 },
-    );
-  }
-
-  const config: AgentConfig = {
-    ensName: "",
-    ownerAddress,
-    recipientAddress: body.recipientAddress,
-    amountUsdc: body.amountUsdc,
-    targetRateNgn: body.targetRateNgn,
-  };
+  const requestBody = await request.json().catch(() => ({}));
 
   try {
+    const { payload: body, signerAddress } =
+      await verifySignedAction<RegisterAgentBody>(requestBody, "ens:register");
+    const ownerAddress = body.ownerAddress ?? signerAddress;
+    const subname =
+      body.subname ??
+      (body.recipientName ? generateAgentName(body.recipientName) : undefined);
+
+    if (!subname) {
+      return NextResponse.json(
+        { error: "Provide subname or recipientName." },
+        { status: 400 },
+      );
+    }
+
+    if (!body.recipientAddress || !body.amountUsdc || !body.targetRateNgn) {
+      return NextResponse.json(
+        {
+          error:
+            "recipientAddress, amountUsdc, and targetRateNgn are required.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!addressesEqual(ownerAddress, signerAddress)) {
+      return NextResponse.json(
+        { error: "Signed wallet must match ownerAddress." },
+        { status: 403 },
+      );
+    }
+
+    const config: AgentConfig = {
+      ensName: "",
+      ownerAddress,
+      recipientAddress: body.recipientAddress,
+      amountUsdc: body.amountUsdc,
+      targetRateNgn: body.targetRateNgn,
+    };
+
     const ensName = await registerAgentName(subname, ownerAddress, config);
     const profile = await getAgentProfile(ensName);
 
     return NextResponse.json({ ensName, profile }, { status: 201 });
   } catch (error) {
+    if (isAuthLikeError(error)) {
+      return authErrorResponse(error);
+    }
+
     return jsonError(error, 502);
   }
 }
 
 export async function PATCH(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as UpdateStatsBody;
-
-  if (!body.ensName || !body.receipt) {
-    return NextResponse.json(
-      { error: "ensName and receipt are required." },
-      { status: 400 },
-    );
-  }
+  const requestBody = await request.json().catch(() => ({}));
 
   try {
+    const { payload: body, signerAddress } =
+      await verifySignedAction<UpdateStatsBody>(
+        requestBody,
+        "ens:update_stats",
+      );
+
+    if (!body.ensName || !body.receipt) {
+      return NextResponse.json(
+        { error: "ensName and receipt are required." },
+        { status: 400 },
+      );
+    }
+
+    if (!addressesEqual(body.receipt.senderAddress, signerAddress)) {
+      return NextResponse.json(
+        { error: "Signed wallet must match receipt senderAddress." },
+        { status: 403 },
+      );
+    }
+
+    const profile = await getAgentProfile(body.ensName);
+
+    if (!addressesEqual(profile.ownerAddress, signerAddress)) {
+      return NextResponse.json(
+        { error: "Signed wallet must own the ENS agent profile." },
+        { status: 403 },
+      );
+    }
+
     await updateAgentStats(body.ensName, body.receipt);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (isAuthLikeError(error)) {
+      return authErrorResponse(error);
+    }
+
     return jsonError(error, 502);
   }
 }
 
-function getDefaultOwnerAddress() {
-  const privateKey = process.env.PRIVATE_KEY;
-
-  if (!privateKey) {
-    return undefined;
-  }
-
-  return privateKeyToAccount(
-    privateKey.startsWith("0x") ? `0x${privateKey.slice(2)}` : `0x${privateKey}`,
-  ).address;
+function isAuthLikeError(error: unknown): boolean {
+  return error instanceof AuthError;
 }
 
 function jsonError(error: unknown, status: number) {
