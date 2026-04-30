@@ -73,8 +73,10 @@ owner/sender address.
 
 Agent deployment now creates a durable job and returns a `jobId`. The UI
 subscribes to `/api/agent/jobs/:jobId/events`, while `/api/agent/worker` advances
-queued work. On Vercel, the worker is scheduled every minute through
-`vercel.json`. Configure Upstash Redis REST variables for production durability;
+queued work. On the current Vercel Hobby deployment, the worker cron is scheduled
+daily because Hobby accounts do not allow more frequent cron jobs. For true
+production autonomy, run the worker from a Pro Vercel cron or an external
+scheduler. Configure Upstash Redis REST variables for production durability;
 without them, jobs and receipt indexes fall back to in-memory local mode.
 
 Major agent state transitions are also written to 0G Storage through the agent
