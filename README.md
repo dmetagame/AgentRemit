@@ -73,11 +73,10 @@ owner/sender address.
 
 Agent deployment now creates a durable job and returns a `jobId`. The UI
 subscribes to `/api/agent/jobs/:jobId/events`, while `/api/agent/worker` advances
-queued work. On the current Vercel Hobby deployment, the worker cron is scheduled
-daily because Hobby accounts do not allow more frequent cron jobs. For true
-production autonomy, run the worker from a Pro Vercel cron or an external
-scheduler. Configure Upstash Redis REST variables for production durability;
-without them, jobs and receipt indexes fall back to in-memory local mode.
+queued work. Production scheduling is handled by Upstash QStash, which calls the
+worker every minute and forwards the worker secret as an `Authorization` header.
+Configure Upstash Redis REST variables for production durability; without them,
+jobs and receipt indexes fall back to in-memory local mode.
 
 Major agent state transitions are also written to 0G Storage through the agent
 memory log. If 0G upload is unavailable, the transition is retained in the job
@@ -92,6 +91,35 @@ v3 contract quote fallback for local development or API-key-free demos.
 Production execution fails closed when live exchange-rate data is unavailable.
 The fallback rate is display-only unless mock/local KeeperHub mode is enabled or
 `AGENTREMIT_ALLOW_FALLBACK_RATE_EXECUTION=true` is set explicitly.
+
+## Production Scheduler
+
+AgentRemit uses Upstash QStash instead of Vercel Cron so the worker can run more
+often than Vercel Hobby allows. The scheduler calls:
+
+```text
+https://agentremit-gamma.vercel.app/api/agent/worker
+```
+
+Create or update the QStash schedule:
+
+```bash
+QSTASH_TOKEN=... \
+AGENTREMIT_WORKER_SECRET=... \
+npm run scheduler:qstash
+```
+
+Optional overrides:
+
+```bash
+AGENTREMIT_WORKER_URL=https://agentremit-gamma.vercel.app/api/agent/worker
+QSTASH_CRON="* * * * *"
+QSTASH_SCHEDULE_ID=agentremit-worker-production
+```
+
+The script forwards `Authorization: Bearer $AGENTREMIT_WORKER_SECRET` to the
+worker endpoint and uses `Upstash-Schedule-Id` so rerunning the command updates
+the same schedule instead of creating duplicates.
 
 ## Local Development
 
@@ -134,6 +162,10 @@ UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 AGENTREMIT_WORKER_SECRET=
 CRON_SECRET=
+QSTASH_TOKEN=
+AGENTREMIT_WORKER_URL=
+QSTASH_CRON=
+QSTASH_SCHEDULE_ID=
 ```
 
 `KEEPERHUB_API_URL` defaults to `https://app.keeperhub.com/api`. Leave `KEEPERHUB_MODE` unset for live KeeperHub execution, or set it to `mock` for local demonstration.
