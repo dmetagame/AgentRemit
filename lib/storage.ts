@@ -43,6 +43,7 @@ const sessionReceipts = new Map<string, string>();
 const sessionLogRoots = new Map<string, string>();
 const sessionLogs = new Map<string, string[]>();
 let seededReceiptsCache: RemittanceReceipt[] | null = null;
+let zeroGUploadQueue: Promise<void> = Promise.resolve();
 
 type ZeroGUploadResult = {
   txHash: string;
@@ -85,6 +86,26 @@ export type StorageSaveResult = {
   receipt?: RemittanceReceipt;
 };
 
+export type ZeroGStorageReadiness = {
+  configured: boolean;
+  rpcConfigured: boolean;
+  indexerConfigured: boolean;
+  signerConfigured: boolean;
+};
+
+export function getZeroGStorageReadiness(): ZeroGStorageReadiness {
+  const rpcConfigured = Boolean(process.env.ZEROG_RPC_URL);
+  const indexerConfigured = Boolean(process.env.ZEROG_INDEXER_URL);
+  const signerConfigured = Boolean(process.env.PRIVATE_KEY);
+
+  return {
+    configured: rpcConfigured && indexerConfigured && signerConfigured,
+    rpcConfigured,
+    indexerConfigured,
+    signerConfigured,
+  };
+}
+
 export async function saveReceipt(
   receipt: RemittanceReceipt,
 ): Promise<StorageSaveResult> {
@@ -99,7 +120,7 @@ export async function saveReceipt(
   try {
     const data = new TextEncoder().encode(padded);
     const memData = new MemData(data);
-    const uploadResult = await uploadToZeroG(memData);
+    const uploadResult = await enqueueZeroGUpload(memData);
 
     rootHash = uploadResult.rootHash;
     txHash = uploadResult.txHash;
@@ -190,7 +211,7 @@ export async function appendToAgentLog(
   try {
     const data = new TextEncoder().encode(padStoragePayload(entry));
     const memData = new MemData(data);
-    const { rootHash, txHash } = await uploadToZeroG(memData);
+    const { rootHash, txHash } = await enqueueZeroGUpload(memData);
 
     sessionLogRoots.set(key, rootHash);
 
@@ -305,6 +326,41 @@ async function uploadToZeroG(memData: MemData): Promise<ZeroGUploadResult> {
     txHash: txResponse.hash,
     rootHash,
   };
+}
+
+async function enqueueZeroGUpload(
+  memData: MemData,
+): Promise<ZeroGUploadResult> {
+  const upload = zeroGUploadQueue.then(() => uploadToZeroGWithRetry(memData));
+
+  zeroGUploadQueue = upload.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return upload;
+}
+
+async function uploadToZeroGWithRetry(
+  memData: MemData,
+): Promise<ZeroGUploadResult> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await uploadToZeroG(memData);
+    } catch (error) {
+      lastError = error;
+
+      if (!isRetryableNonceError(error) || attempt === 1) {
+        throw error;
+      }
+
+      await delay(1500);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 function normalizeSubmission(submission: SdkSubmission): LegacySubmission {
@@ -476,6 +532,23 @@ function parseReceipt(rawValue: string): RemittanceReceipt | null {
   }
 
   return null;
+}
+
+function isRetryableNonceError(error: unknown): boolean {
+  const message = errorToMessage(error).toLowerCase();
+
+  return (
+    message.includes("replacement transaction underpriced") ||
+    message.includes("replacement fee too low") ||
+    message.includes("nonce too low") ||
+    message.includes("already known")
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function errorToMessage(error: unknown): string {

@@ -7,6 +7,7 @@ import { ConnectButton as ConnectWalletButton } from "@/components/ConnectButton
 import { RateTracker } from "@/components/RateTracker";
 import { ReceiptsTable } from "@/components/ReceiptsTable";
 import { SetupForm } from "@/components/SetupForm";
+import { SystemStatus } from "@/components/SystemStatus";
 import type { AgentConfig, AgentEvent, AgentJob, RateQuote } from "@/types";
 
 type DashboardState =
@@ -22,6 +23,9 @@ type DashboardState =
 type RateResponse = {
   rate?: number;
   asOf?: string;
+  source?: string;
+  executable?: boolean;
+  fallback?: boolean;
 };
 
 type JobResponse = {
@@ -42,6 +46,8 @@ export default function Home() {
   const [jobDurable, setJobDurable] = useState(false);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [currentRate, setCurrentRate] = useState(DEFAULT_RATE);
+  const [rateSource, setRateSource] = useState("fallback");
+  const [rateExecutable, setRateExecutable] = useState(false);
   const [rateUpdatedAt, setRateUpdatedAt] = useState(() => Date.now());
   const [receiptsRefreshKey, setReceiptsRefreshKey] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -61,6 +67,8 @@ export default function Home() {
           payload.rate > 0
         ) {
           setCurrentRate(payload.rate);
+          setRateSource(payload.source ?? "unknown");
+          setRateExecutable(Boolean(payload.executable));
           setRateUpdatedAt(readTimestamp(payload.asOf) ?? Date.now());
         }
       } catch {
@@ -161,6 +169,11 @@ export default function Home() {
       if (typeof rate === "number") {
         setCurrentRate(rate);
         setRateUpdatedAt(readTimestamp(rateQuote?.asOf) ?? Date.now());
+      }
+
+      if (rateQuote?.source) {
+        setRateSource(rateQuote.source);
+        setRateExecutable(rateQuote.source !== "fallback");
       }
       return;
     }
@@ -272,6 +285,8 @@ export default function Home() {
         </div>
       </nav>
 
+      <SystemStatus />
+
       <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:px-8 lg:grid-cols-2 lg:px-12">
         <section className="flex flex-col gap-4">
           <div>
@@ -312,7 +327,7 @@ export default function Home() {
         <section className="flex flex-col gap-4">
           <div>
             <p className="text-sm font-medium text-[#1a7f37]">
-              Live monitoring
+              Monitoring
             </p>
             <h2 className="mt-2 text-[18px] font-semibold text-[#24292f]">
               {rightColumnHeading(state)}
@@ -327,6 +342,8 @@ export default function Home() {
             targetRate={targetRate}
             isWatching={isWatching}
             updatedAt={rateUpdatedAt}
+            source={rateSource}
+            executable={rateExecutable}
           />
 
           <ActivityFeed events={events} status={activityStatus(state)} />
@@ -459,7 +476,7 @@ function leftColumnMessage(state: DashboardState): string {
   }
 
   if (state === "paused") {
-    return "Your durable agent job is paused. Resume it when you want rate monitoring to continue.";
+    return "Your agent job is paused. Resume it when you want rate monitoring to continue.";
   }
 
   if (state === "cancelled") {
@@ -503,7 +520,7 @@ function rightColumnHeading(state: DashboardState): string {
 
 function rightColumnMessage(state: DashboardState): string {
   if (state === "idle" || state === "configuring") {
-    return "Live USDC/NGN rates update every 30 seconds. Deploy an agent to act on your target.";
+    return "USDC/NGN rates update every 30 seconds. Deploy an agent to act on your target when the source is executable.";
   }
 
   if (state === "watching") {

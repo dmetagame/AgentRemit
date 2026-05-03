@@ -7,6 +7,8 @@ type RateTrackerProps = {
   targetRate: number;
   isWatching: boolean;
   updatedAt: number;
+  source: string;
+  executable: boolean;
 };
 
 const BASELINE_RATE = 1400;
@@ -16,6 +18,8 @@ export function RateTracker({
   targetRate,
   isWatching,
   updatedAt,
+  source,
+  executable,
 }: RateTrackerProps) {
   const [now, setNow] = useState(() => Date.now());
   const [pulseKey, setPulseKey] = useState(0);
@@ -25,6 +29,7 @@ export function RateTracker({
   );
   const distanceToTarget = Math.max(0, targetRate - currentRate);
   const targetReached = currentRate >= targetRate;
+  const isFallbackRate = source === "fallback";
 
   useEffect(() => {
     setPulseKey((value) => value + 1);
@@ -49,10 +54,17 @@ export function RateTracker({
           })}
         </p>
         <p className="text-sm text-[#6e7781]">
-          {isWatching ? "Agent watching" : "Live market rate"} - Updated{" "}
-          {formatAge(updatedAt, now)}
+          {isWatching ? "Agent watching" : rateLabel(source)} - Updated{" "}
+          {formatAge(updatedAt, now)} from {sourceLabel(source)}
         </p>
       </div>
+
+      {isFallbackRate || !executable ? (
+        <div className="mt-4 rounded-md border border-[#fff8c5] bg-[#fffdef] px-3 py-2 text-[13px] leading-5 text-[#7d4e00]">
+          This is a display-only fallback rate. Agent execution will wait until a
+          live FX source is configured.
+        </div>
+      ) : null}
 
       <div className="mt-6">
         <div className="h-2 overflow-hidden rounded-full bg-[#eaeef2]">
@@ -115,6 +127,22 @@ function progressFillClass(progress: number, targetReached: boolean): string {
   }
 
   return "bg-[#8c959f]";
+}
+
+function rateLabel(source: string): string {
+  return source === "fallback" ? "Fallback display rate" : "Live market rate";
+}
+
+function sourceLabel(source: string): string {
+  if (source === "fallback") {
+    return "fallback";
+  }
+
+  if (source === "exchangerate-api") {
+    return "ExchangeRate API";
+  }
+
+  return source || "unknown source";
 }
 
 function formatAge(updatedAt: number, now: number): string {

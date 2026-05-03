@@ -2,6 +2,10 @@ import { ethers } from "ethers";
 import type { TransactionRequest } from "viem";
 import type { KeeperJob, PaymentQuote, PaymentRequest } from "@/types";
 import { resolveEnsName } from "@/lib/ens";
+import {
+  assertRemittanceExecutionAllowed,
+  isMockKeeperHubMode,
+} from "@/lib/execution-policy";
 import { quoteNgnToUsdc, toUsdcUnits } from "@/lib/swap";
 import type { KeeperHubContractCall } from "@/lib/swap";
 
@@ -15,6 +19,7 @@ export interface PreparedPayment {
 
 type RemittanceMeta = {
   agentEnsName: string;
+  ownerAddress: string;
   recipientAddress: string;
   targetRate: number;
   amountUsdc: string;
@@ -67,6 +72,8 @@ export async function scheduleRemittance(
   if (shouldUseMockKeeperHub()) {
     return createMockKeeperJob(meta);
   }
+
+  assertRemittanceExecutionAllowed(meta);
 
   const contractCall = getKeeperHubContractCall(swapTx);
   const payload = await keeperHubRequest<unknown>("/execute/contract-call", {
@@ -306,9 +313,7 @@ function delay(ms: number): Promise<void> {
 }
 
 function shouldUseMockKeeperHub(): boolean {
-  const mode = process.env.KEEPERHUB_MODE?.toLowerCase();
-
-  if (mode === "mock" || mode === "dev" || mode === "local") {
+  if (isMockKeeperHubMode()) {
     return true;
   }
 

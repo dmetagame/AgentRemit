@@ -110,6 +110,7 @@ export class RemittanceAgent extends EventEmitter {
       );
       const jobId = await payments.scheduleRemittance(swapTx, {
         agentEnsName: this.config.ensName,
+        ownerAddress: this.config.ownerAddress,
         recipientAddress: this.config.recipientAddress,
         targetRate: this.config.targetRateNgn,
         amountUsdc: this.config.amountUsdc,

@@ -1,8 +1,8 @@
 # AgentRemit
 
-AgentRemit is an autonomous remittance agent for the Lagos corridor. A sender connects a wallet, sets a recipient, amount, and target USDC/NGN exchange rate, then deploys a 0G-backed agent job that watches live rates and executes when the target is reached.
+AgentRemit is an autonomous remittance agent for the Lagos corridor. A sender connects a wallet, sets a recipient, amount, and target USDC/NGN exchange rate, then deploys a 0G-backed agent job that watches rates and executes only when the target is reached and the production safety policy allows it.
 
-The product combines wallet onboarding, live FX monitoring, durable agent jobs, 0G Storage memory, Uniswap API quote metadata, Uniswap swap preparation, KeeperHub execution, and 0G Storage receipts into one end-to-end remittance workflow.
+The product combines wallet onboarding, FX monitoring, durable agent jobs when Redis is configured, 0G Storage memory, Uniswap API quote metadata, Uniswap swap preparation, guarded KeeperHub execution, and 0G Storage receipts into one end-to-end remittance workflow.
 
 ## Project Links
 
@@ -11,9 +11,9 @@ The product combines wallet onboarding, live FX monitoring, durable agent jobs, 
 
 ## Submission Description
 
-AgentRemit lets diaspora senders automate stablecoin remittances instead of manually checking rates and timing transfers. The sender configures a remittance agent with a target USDC/NGN rate. The agent creates a durable server-side job, records lifecycle transitions to 0G Storage memory, watches live exchange-rate data, requests a Uniswap quote when the target is reached, submits the execution through KeeperHub, and stores the resulting receipt on 0G Storage.
+AgentRemit lets diaspora senders automate stablecoin remittances instead of manually checking rates and timing transfers. The sender configures a remittance agent with a target USDC/NGN rate. The agent creates a server-side job, records lifecycle transitions to 0G Storage memory, watches exchange-rate data, requests a Uniswap quote when the target is reached, submits execution through KeeperHub only when the live execution policy allows it, and stores the resulting receipt on 0G Storage.
 
-For the demo, the dashboard shows wallet connection, a live nonzero USDC/NGN rate, auto-generated 0G agent handles, a visible durable job ID, pause/resume/cancel/update-target controls, seeded 0G receipts, and a full live activity feed: job created, watching, rate hit, quote received, KeeperHub job submitted, KeeperHub confirmed, and receipt saved.
+For the demo, the dashboard shows wallet connection, the current rate source, auto-generated 0G agent handles, a visible job ID, pause/resume/cancel/update-target controls, seeded demo receipts, and a full live activity feed. A production-readiness banner calls out missing Redis, fallback FX data, disabled KeeperHub execution, or incomplete 0G Storage configuration instead of hiding those gaps.
 
 ## Why It Matters
 
@@ -22,15 +22,15 @@ Remittance senders often care about timing. A small rate movement can materially
 ## Core Features
 
 - Connect wallet with RainbowKit and Wagmi.
-- Display live USDC/NGN rates from the rates API.
+- Display USDC/NGN rates and clearly label live versus fallback sources.
 - Auto-generate 0G agent handles from sender input.
-- Create durable agent jobs with Upstash Redis in production and local memory fallback in development.
+- Create durable agent jobs with Upstash Redis in production and local memory fallback only when explicitly allowed.
 - Pause, resume, cancel, and update the target rate for an active agent job.
 - Record major state transitions to 0G Storage memory: created, watching, rate hit, quote received, execution submitted, confirmed, and receipt saved.
-- Trigger immediately when the live rate reaches the configured target.
+- Trigger immediately when an executable live rate reaches the configured target.
 - Request Uniswap Trading API `/quote` data when `UNISWAP_API_KEY` is configured, with Uniswap v3 contract quoting as a fallback.
 - Show before/after quote snapshots, route, slippage, expected output, and execution status in each receipt.
-- Submit execution requests through KeeperHub.
+- Submit execution requests through KeeperHub only after live execution is explicitly enabled, capped, and owner-allowlisted.
 - Store remittance receipts on 0G Storage.
 - Show seeded and live receipt history in the dashboard.
 
@@ -48,11 +48,11 @@ Remittance senders often care about timing. A small rate movement can materially
 
 1. Open the production dashboard.
 2. Connect a wallet and confirm the shortened wallet address appears.
-3. Confirm the rate tracker shows a live USDC/NGN value.
+3. Confirm the rate tracker shows the USDC/NGN value and whether it is live or fallback.
 4. Fill the setup form with a recipient, amount, and target rate below the current rate.
 5. Confirm the 0G agent handle preview updates while typing.
 6. Deploy the agent.
-7. Confirm the durable job panel shows the job ID, job store, and 0G memory transition count.
+7. Confirm the job panel shows the job ID, job store, and 0G memory transition count.
 8. Use pause, resume, cancel, or update-target controls to prove the agent is controllable after deployment.
 9. Watch the activity feed for job created, watching, rate hit, quote, KeeperHub execution, receipt storage, and 0G memory updates.
 10. Open the receipts table to inspect Uniswap quote snapshots, KeeperHub job ID, transaction hash, and 0G receipt root.
@@ -67,6 +67,20 @@ No wallet configured for this organization. Create a wallet in Settings before e
 
 For a local end-to-end demo without spending KeeperHub wallet funds, run the app in mock KeeperHub mode.
 
+The live execution path fails closed by default. Production KeeperHub execution
+requires all of the following:
+
+```bash
+AGENTREMIT_ENABLE_LIVE_EXECUTION=true
+AGENTREMIT_MAX_LIVE_USDC=10
+AGENTREMIT_EXECUTION_OWNER_ALLOWLIST=0xAllowedOwner...
+KEEPERHUB_API_KEY=...
+```
+
+This prevents arbitrary connected wallets from signing a config that spends the
+server/KeeperHub wallet. Use an allowlisted demo wallet and a small cap for live
+judging, or keep `KEEPERHUB_MODE=mock` for a simulation-only demo.
+
 Privileged write routes require a fresh wallet signature. Agent deployment and
 job controls are rejected unless the signed wallet matches the submitted
 owner/sender address.
@@ -76,12 +90,14 @@ subscribes to `/api/agent/jobs/:jobId/events`, while `/api/agent/worker` advance
 queued work. Production scheduling is handled by Upstash QStash, which calls the
 worker every minute and forwards the worker secret as an `Authorization` header.
 Configure Upstash Redis REST variables for production durability; without them,
-jobs and receipt indexes fall back to in-memory local mode.
+production job creation is rejected unless `AGENTREMIT_ALLOW_MEMORY_JOBS=true`
+is set for a clearly labeled demo.
 
 Major agent state transitions are also written to 0G Storage through the agent
 memory log. If 0G upload is unavailable, the transition is retained in the job
 record with a memory-fallback proof so the demo still shows exactly what would
-be persisted.
+be persisted. 0G writes are serialized in-process to reduce nonce collisions
+when multiple state transitions are recorded quickly.
 
 Uniswap integration uses the Trading API `/quote` endpoint when
 `UNISWAP_API_KEY` is set. The quote request uses Sepolia, native ETH input,
@@ -112,6 +128,7 @@ npm run scheduler:qstash
 Optional overrides:
 
 ```bash
+QSTASH_URL=https://qstash.upstash.io
 AGENTREMIT_WORKER_URL=https://agentremit-gamma.vercel.app/api/agent/worker
 QSTASH_CRON="* * * * *"
 QSTASH_SCHEDULE_ID=agentremit-worker-production
@@ -155,9 +172,14 @@ ZEROG_INDEXER_URL=
 KEEPERHUB_API_KEY=
 KEEPERHUB_API_URL=
 KEEPERHUB_MODE=
+AGENTREMIT_ENABLE_LIVE_EXECUTION=
+AGENTREMIT_MAX_LIVE_USDC=
+AGENTREMIT_EXECUTION_OWNER_ALLOWLIST=
 UNISWAP_API_KEY=
 UNISWAP_API_BASE_URL=
 AGENTREMIT_ALLOW_FALLBACK_RATE_EXECUTION=
+AGENTREMIT_ALLOW_MEMORY_JOBS=
+AGENTREMIT_REQUIRE_DURABLE_JOBS=
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 AGENTREMIT_WORKER_SECRET=
@@ -168,24 +190,27 @@ QSTASH_CRON=
 QSTASH_SCHEDULE_ID=
 ```
 
-`KEEPERHUB_API_URL` defaults to `https://app.keeperhub.com/api`. Leave `KEEPERHUB_MODE` unset for live KeeperHub execution, or set it to `mock` for local demonstration.
+`KEEPERHUB_API_URL` defaults to `https://app.keeperhub.com/api`. Leave `KEEPERHUB_MODE` unset for guarded live KeeperHub execution, or set it to `mock` for local demonstration.
 
 ## API Checks
 
 ```bash
+curl http://localhost:3000/api/readiness
 curl http://localhost:3000/api/rates
 curl "http://localhost:3000/api/receipts?agent=sends-ada-home.agentremit.eth"
 ```
 
 Expected behavior:
 
-- `/api/rates` returns current USDC/NGN JSON with a positive rate.
+- `/api/readiness` returns deployment warnings without exposing secrets.
+- `/api/rates` returns current USDC/NGN JSON with a positive rate, source, fallback flag, and executability flag.
 - `/api/receipts` returns the seeded 0G receipt history for `sends-ada-home.agentremit.eth`.
 
 ## Verification
 
 ```bash
 npm run lint
+npm test
 npx tsc --noEmit
 npm run build
 ```

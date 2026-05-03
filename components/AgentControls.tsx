@@ -123,7 +123,7 @@ export function AgentControls({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-medium uppercase text-[#6e7781]">
-              Durable agent job
+              Agent job
             </p>
             <h2 className="mt-1 text-xl font-semibold capitalize text-[#24292f]">
               {statusLabel}

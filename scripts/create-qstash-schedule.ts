@@ -2,6 +2,7 @@ import "dotenv/config";
 
 const DEFAULT_DESTINATION =
   "https://agentremit-gamma.vercel.app/api/agent/worker";
+const DEFAULT_QSTASH_URL = "https://qstash.upstash.io";
 const DEFAULT_CRON = "* * * * *";
 const DEFAULT_SCHEDULE_ID = "agentremit-worker-production";
 
@@ -9,6 +10,7 @@ async function main() {
   const qstashToken = process.env.QSTASH_TOKEN;
   const workerSecret =
     process.env.AGENTREMIT_WORKER_SECRET ?? process.env.CRON_SECRET;
+  const qstashUrl = process.env.QSTASH_URL ?? DEFAULT_QSTASH_URL;
   const destination = process.env.AGENTREMIT_WORKER_URL ?? DEFAULT_DESTINATION;
   const cron = process.env.QSTASH_CRON ?? DEFAULT_CRON;
   const scheduleId = process.env.QSTASH_SCHEDULE_ID ?? DEFAULT_SCHEDULE_ID;
@@ -22,7 +24,7 @@ async function main() {
   }
 
   const response = await fetch(
-    `https://qstash.upstash.io/v2/schedules/${destination}`,
+    `${qstashUrl.replace(/\/$/, "")}/v2/schedules/${destination}`,
     {
       method: "POST",
       headers: {
@@ -50,6 +52,7 @@ async function main() {
     JSON.stringify(
       {
         scheduleId: parsed.scheduleId ?? scheduleId,
+        qstashUrl,
         destination,
         cron,
       },

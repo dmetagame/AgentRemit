@@ -24,6 +24,8 @@ type RedisResponse<T> = {
 };
 
 export async function createAgentJob(config: AgentConfig): Promise<AgentJob> {
+  assertAgentJobStoreReady();
+
   const now = Date.now();
   const job: AgentJob = {
     id: createJobId(),
@@ -39,7 +41,7 @@ export async function createAgentJob(config: AgentConfig): Promise<AgentJob> {
   await addActiveAgentJob(job.id);
   await recordAgentJobEvent(job, {
     type: "job_created",
-    message: `Durable agent job ${job.id} created`,
+    message: `Agent job ${job.id} created`,
     data: { jobId: job.id, targetRateNgn: config.targetRateNgn },
     timestamp: now,
   });
@@ -221,6 +223,29 @@ export async function removeActiveAgentJob(jobId: string): Promise<void> {
 
 export function usesDurableAgentJobStore(): boolean {
   return usesRedisStore();
+}
+
+export function requiresDurableAgentJobStore(): boolean {
+  if (process.env.AGENTREMIT_REQUIRE_DURABLE_JOBS === "true") {
+    return true;
+  }
+
+  if (process.env.AGENTREMIT_ALLOW_MEMORY_JOBS === "true") {
+    return false;
+  }
+
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV === "production"
+  );
+}
+
+export function assertAgentJobStoreReady(): void {
+  if (requiresDurableAgentJobStore() && !usesDurableAgentJobStore()) {
+    throw new Error(
+      "Durable agent jobs require UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in production. Set AGENTREMIT_ALLOW_MEMORY_JOBS=true only for a clearly labeled demo.",
+    );
+  }
 }
 
 function isActiveJobState(state: AgentJob["state"]): boolean {
