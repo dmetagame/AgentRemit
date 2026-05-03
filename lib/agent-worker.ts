@@ -194,6 +194,7 @@ async function submitKeeperJob(job: AgentJob): Promise<void> {
   );
   const keeperJobId = await payments.scheduleRemittance(swapTx, {
     agentEnsName: job.config.ensName,
+    ownerAddress: job.config.ownerAddress,
     recipientAddress: job.config.recipientAddress,
     targetRate: job.config.targetRateNgn,
     amountUsdc: job.config.amountUsdc,
