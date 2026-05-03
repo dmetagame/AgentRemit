@@ -61,8 +61,8 @@ export function SystemStatus() {
   }
 
   return (
-    <section className="border-b border-[#d8dee4] bg-[#fff8c5]">
-      <div className="mx-auto grid max-w-7xl gap-3 px-5 py-4 text-sm text-[#5f3b00] sm:px-8 lg:grid-cols-[auto_1fr] lg:px-12">
+    <section className="border-b border-amber-200/20 bg-amber-300/10 backdrop-blur-md">
+      <div className="mx-auto grid max-w-7xl gap-3 px-5 py-4 text-sm text-amber-100 sm:px-8 lg:grid-cols-[auto_1fr] lg:px-12">
         <p className="font-semibold">Production readiness</p>
         <div className="grid gap-2">
           <div className="flex flex-wrap gap-2 text-[12px] font-medium">
@@ -111,8 +111,8 @@ function StatusPill({
     <span
       className={`rounded-md border px-2 py-1 ${
         ok
-          ? "border-[#8ddb8c] bg-[#dafbe1] text-[#1a7f37]"
-          : "border-[#d4a72c] bg-[#fffdef] text-[#7d4e00]"
+          ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+          : "border-amber-300/30 bg-amber-400/10 text-amber-100"
       }`}
     >
       {label}: {value}

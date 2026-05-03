@@ -71,30 +71,30 @@ export function ReceiptsTable({ agentEnsName, refreshKey = 0 }: ReceiptsTablePro
   }, [agentEnsName, refreshKey]);
 
   return (
-    <section className="rounded-md border border-[#d8dee4] bg-white shadow-sm">
-      <div className="border-b border-[#d8dee4] px-5 py-4">
-        <h2 className="text-sm font-semibold text-[#24292f]">
+    <section className="agent-card overflow-hidden">
+      <div className="agent-card-header px-5 py-4">
+        <h2 className="text-sm font-semibold agent-heading">
           Transaction history
         </h2>
       </div>
 
       <div className="overflow-x-auto">
         {isLoading ? (
-          <div className="px-5 py-10 text-center text-sm text-[#6e7781]">
+          <div className="px-5 py-10 text-center text-sm agent-muted">
             Loading transactions...
           </div>
         ) : error ? (
-          <div className="px-5 py-10 text-center text-sm text-[#cf222e]">
+          <div className="px-5 py-10 text-center text-sm agent-danger">
             {error}
           </div>
         ) : sortedReceipts.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-[#6e7781]">
+          <div className="px-5 py-12 text-center text-sm agent-muted">
             No transactions yet — agent is watching rates.
           </div>
         ) : (
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-[#d8dee4] bg-[#f6f8fa] text-xs font-semibold uppercase text-[#6e7781]">
+              <tr className="agent-table-head text-xs font-semibold uppercase">
                 <th className="px-5 py-3">Date</th>
                 <th className="px-5 py-3">Transfer</th>
                 <th className="px-5 py-3">Recipient</th>
@@ -104,17 +104,17 @@ export function ReceiptsTable({ agentEnsName, refreshKey = 0 }: ReceiptsTablePro
                 <th className="px-5 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#d8dee4]">
+            <tbody className="divide-y divide-slate-700/40">
               {sortedReceipts.map((receipt) => (
-                <tr key={receipt.id} className="text-[#24292f]">
+                <tr key={receipt.id} className="agent-table-row">
                   <td className="whitespace-nowrap px-5 py-4 text-[13px]">
                     {formatDate(receipt.timestamp)}
                   </td>
                   <td className="min-w-[150px] px-5 py-4 text-[13px]">
-                    <p className="font-semibold text-[#24292f]">
+                    <p className="font-semibold agent-heading">
                       {receipt.amountUsdc} USDC
                     </p>
-                    <p className="mt-1 text-[#57606a]">
+                    <p className="mt-1 agent-muted">
                       ₦
                       {receipt.effectiveRateNgn.toLocaleString("en-NG", {
                         maximumFractionDigits: 0,
@@ -122,19 +122,19 @@ export function ReceiptsTable({ agentEnsName, refreshKey = 0 }: ReceiptsTablePro
                       /USDC
                     </p>
                     {receipt.amountInEth ? (
-                      <p className="mt-1 text-[#6e7781]">
+                      <p className="mt-1 agent-subtle">
                         Input {receipt.amountInEth} ETH
                       </p>
                     ) : null}
                   </td>
                   <td className="whitespace-nowrap px-5 py-4">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[13px] text-[#57606a]">
+                      <span className="font-mono text-[13px] agent-muted">
                         {truncateAddress(receipt.recipientAddress)}
                       </span>
                       <button
                         type="button"
-                        className="rounded-md border border-[#d8dee4] px-2 py-1 text-[11px] font-medium text-[#57606a] transition hover:bg-[#f6f8fa]"
+                        className="agent-button agent-button-secondary px-2 py-1 text-[11px]"
                         onClick={() => copyText(receipt.recipientAddress)}
                       >
                         Copy
@@ -167,7 +167,7 @@ export function ReceiptsTable({ agentEnsName, refreshKey = 0 }: ReceiptsTablePro
         )}
       </div>
 
-      <p className="border-t border-[#d8dee4] px-5 py-3 text-[11px] text-[#6e7781]">
+      <p className="border-t agent-divider px-5 py-3 text-[11px] agent-subtle">
         0G Storage proof is shown when a live root hash is available.
       </p>
     </section>
@@ -182,7 +182,7 @@ function StorageProof({
   zeroGExplorerBase?: string;
 }) {
   if (receipt.demo || receipt.storageProvider === "demo") {
-    return <span className="text-[#6e7781]">demo seed</span>;
+    return <span className="agent-subtle">demo seed</span>;
   }
 
   if (receipt.zeroGRootHash) {
@@ -192,7 +192,7 @@ function StorageProof({
       <div className="grid gap-1">
         {zeroGExplorerBase ? (
           <a
-            className="font-medium text-[#0969da] hover:underline"
+            className="font-medium agent-link"
             href={joinUrl(zeroGExplorerBase, receipt.zeroGRootHash)}
             target="_blank"
             rel="noreferrer"
@@ -201,12 +201,12 @@ function StorageProof({
             root {label}
           </a>
         ) : (
-          <span className="font-mono text-[#57606a]" title={receipt.zeroGRootHash}>
+          <span className="font-mono agent-muted" title={receipt.zeroGRootHash}>
             root {label}
           </span>
         )}
         {receipt.zeroGTxHash ? (
-          <span className="font-mono text-[11px] text-[#6e7781]">
+          <span className="font-mono text-[11px] agent-subtle">
             tx {truncateHash(receipt.zeroGTxHash)}
           </span>
         ) : null}
@@ -215,10 +215,10 @@ function StorageProof({
   }
 
   if (receipt.storageProvider === "memory") {
-    return <span className="text-[#bf8700]">memory fallback</span>;
+    return <span className="agent-warning">memory fallback</span>;
   }
 
-  return <span className="text-[#6e7781]">no proof</span>;
+  return <span className="agent-subtle">no proof</span>;
 }
 
 function QuoteDetails({ receipt }: { receipt: RemittanceReceipt }) {
@@ -231,21 +231,21 @@ function QuoteDetails({ receipt }: { receipt: RemittanceReceipt }) {
 
   return (
     <div className="grid gap-1.5">
-      <p className="font-semibold text-[#24292f]">
+      <p className="font-semibold agent-heading">
         {expected ? `${expected} USDC expected` : "Quote unavailable"}
       </p>
       {minimum ? (
-        <p className="text-[#57606a]">Min after slippage {minimum} USDC</p>
+        <p className="agent-muted">Min after slippage {minimum} USDC</p>
       ) : null}
-      <p className="text-[#57606a]">
+      <p className="agent-muted">
         {source === "uniswap-api" ? "Uniswap API" : "Uniswap v3 contract"}
         {typeof receipt.slippageBps === "number"
           ? ` · ${formatBps(receipt.slippageBps)} slippage`
           : ""}
       </p>
-      {route ? <p className="text-[#6e7781]">{route}</p> : null}
+      {route ? <p className="agent-subtle">{route}</p> : null}
       {after ? (
-        <p className="text-[#6e7781]">
+        <p className="agent-subtle">
           After confirmation quote {after.expectedUsdc} USDC
         </p>
       ) : null}
@@ -276,10 +276,10 @@ function ExecutionDetails({
           baseUrl={txExplorerBase}
         />
       ) : (
-        <span className="text-[#6e7781]">Tx pending</span>
+        <span className="agent-subtle">Tx pending</span>
       )}
       {receipt.executionStatus ? (
-        <span className="text-[#6e7781]">Keeper status {receipt.executionStatus}</span>
+        <span className="agent-subtle">Keeper status {receipt.executionStatus}</span>
       ) : null}
     </div>
   );
@@ -298,7 +298,7 @@ function HashLink({
 
   return baseUrl ? (
     <a
-      className="font-medium text-[#0969da] hover:underline"
+      className="font-medium agent-link"
       href={joinUrl(baseUrl, value)}
       target="_blank"
       rel="noreferrer"
@@ -307,7 +307,7 @@ function HashLink({
       {label} {renderedValue}
     </a>
   ) : (
-    <span className="font-mono text-[#57606a]" title={value}>
+    <span className="font-mono agent-muted" title={value}>
       {label} {renderedValue}
     </span>
   );
@@ -319,7 +319,9 @@ function StatusBadge({ status }: { status: RemittanceReceipt["status"] }) {
   return (
     <span
       className={`rounded-md px-2 py-1 text-xs font-semibold ${
-        isConfirmed ? "bg-[#dafbe1] text-[#1a7f37]" : "bg-[#ffebe9] text-[#cf222e]"
+        isConfirmed
+          ? "bg-emerald-400/15 text-emerald-100"
+          : "bg-rose-400/15 text-rose-100"
       }`}
     >
       {isConfirmed ? "Confirmed" : "Failed"}

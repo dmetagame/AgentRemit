@@ -26,14 +26,14 @@ export function ConnectButton() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                className="h-10 rounded-md border border-[#cf222e] bg-white px-4 text-sm font-semibold text-[#cf222e] shadow-sm transition hover:bg-[#fff1f1]"
+                className="agent-button agent-button-danger h-10 px-4 text-sm"
                 onClick={openChainModal}
               >
                 Switch network
               </button>
               <button
                 type="button"
-                className="h-10 rounded-md border border-[#d0d7de] bg-white px-4 text-sm font-semibold text-[#57606a] shadow-sm transition hover:border-[#cf222e] hover:text-[#cf222e]"
+                className="agent-button agent-button-secondary h-10 px-4 text-sm"
                 onClick={() => disconnect()}
               >
                 Disconnect
@@ -47,14 +47,14 @@ export function ConnectButton() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                className="h-10 rounded-md border border-[#d0d7de] bg-white px-4 text-sm font-semibold text-[#24292f] shadow-sm transition hover:border-[#0969da] hover:text-[#0969da]"
+                className="agent-button agent-button-secondary h-10 px-4 text-sm"
                 onClick={openAccountModal}
               >
                 {label}
               </button>
               <button
                 type="button"
-                className="h-10 rounded-md border border-[#d0d7de] bg-white px-4 text-sm font-semibold text-[#57606a] shadow-sm transition hover:border-[#cf222e] hover:text-[#cf222e]"
+                className="agent-button agent-button-secondary h-10 px-4 text-sm"
                 onClick={() => disconnect()}
               >
                 Disconnect
@@ -66,7 +66,7 @@ export function ConnectButton() {
         return (
           <button
             type="button"
-            className="h-10 rounded-md border border-[#d0d7de] bg-white px-4 text-sm font-semibold text-[#24292f] shadow-sm transition hover:border-[#0969da] hover:text-[#0969da] disabled:cursor-not-allowed disabled:opacity-60"
+            className="agent-button agent-button-secondary h-10 px-4 text-sm"
             disabled={!mounted}
             onClick={openConnectModal}
           >

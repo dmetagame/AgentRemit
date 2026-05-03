@@ -9,20 +9,20 @@ type ActivityFeedProps = {
 };
 
 const dotClasses: Record<AgentEvent["type"], string> = {
-  job_created: "bg-[#0969da]",
-  job_watching: "bg-[#1a7f37]",
-  job_paused: "bg-[#bf8700]",
-  job_resumed: "bg-[#1a7f37]",
-  job_cancelled: "bg-[#cf222e]",
-  target_updated: "bg-[#8250df]",
-  rate_update: "bg-[#8c959f]",
-  threshold_hit: "bg-[#bf8700]",
-  quote_received: "bg-[#0969da]",
-  job_submitted: "bg-[#0969da]",
-  job_confirmed: "bg-[#1a7f37]",
-  receipt_saved: "bg-[#1a7f37]",
-  ens_updated: "bg-[#008080]",
-  error: "bg-[#cf222e]",
+  job_created: "bg-cyan-300",
+  job_watching: "bg-emerald-300",
+  job_paused: "bg-amber-300",
+  job_resumed: "bg-emerald-300",
+  job_cancelled: "bg-rose-300",
+  target_updated: "bg-violet-300",
+  rate_update: "bg-slate-400",
+  threshold_hit: "bg-amber-300",
+  quote_received: "bg-cyan-300",
+  job_submitted: "bg-cyan-300",
+  job_confirmed: "bg-emerald-300",
+  receipt_saved: "bg-emerald-300",
+  ens_updated: "bg-teal-300",
+  error: "bg-rose-300",
 };
 
 export function ActivityFeed({ events, status }: ActivityFeedProps) {
@@ -52,28 +52,28 @@ export function ActivityFeed({ events, status }: ActivityFeedProps) {
   }, [orderedEvents.length]);
 
   return (
-    <section className="rounded-md border border-[#d8dee4] bg-white shadow-sm">
-      <div className="border-b border-[#d8dee4] px-5 py-4">
-        <h2 className="text-sm font-semibold text-[#24292f]">Activity</h2>
+    <section className="agent-card overflow-hidden">
+      <div className="agent-card-header px-5 py-4">
+        <h2 className="text-sm font-semibold agent-heading">Activity</h2>
       </div>
 
       <div ref={scrollRef} className="max-h-[400px] overflow-y-auto">
         {shouldShowPaused ? (
-          <div className="flex items-center gap-3 px-5 py-4 text-[13px] text-[#57606a]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#bf8700]" />
+          <div className="flex items-center gap-3 px-5 py-4 text-[13px] agent-muted">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
             Agent paused.
           </div>
         ) : shouldShowWatching ? (
-          <div className="flex items-center gap-3 px-5 py-4 text-[13px] text-[#57606a]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#8c959f] opacity-80 animate-pulse" />
+          <div className="flex items-center gap-3 px-5 py-4 text-[13px] agent-muted">
+            <span className="h-2.5 w-2.5 rounded-full bg-cyan-300 opacity-80 animate-pulse" />
             Watching rates...
           </div>
         ) : orderedEvents.length === 0 ? (
-          <div className="px-5 py-4 text-[13px] text-[#57606a]">
+          <div className="px-5 py-4 text-[13px] agent-muted">
             No activity yet.
           </div>
         ) : (
-          <ul className="divide-y divide-[#d8dee4]">
+          <ul className="divide-y divide-slate-700/40">
             {orderedEvents.map((event, index) => (
               <li
                 key={`${event.timestamp}-${event.type}-${index}`}
@@ -83,11 +83,11 @@ export function ActivityFeed({ events, status }: ActivityFeedProps) {
                   className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${dotClasses[event.type]}`}
                   aria-hidden="true"
                 />
-                <p className="min-w-0 flex-1 text-[13px] leading-5 text-[#24292f]">
+                <p className="min-w-0 flex-1 text-[13px] leading-5 agent-heading">
                   {event.message}
                 </p>
                 <time
-                  className="shrink-0 text-[11px] leading-5 text-[#6e7781]"
+                  className="shrink-0 text-[11px] leading-5 agent-subtle"
                   dateTime={new Date(normalizeTimestamp(event.timestamp)).toISOString()}
                 >
                   {relativeTime(event.timestamp, now)}
@@ -120,7 +120,7 @@ export function ActivityFeed({ events, status }: ActivityFeedProps) {
 
 function rowTone(type: AgentEvent["type"]): string {
   if (type === "threshold_hit" || type === "job_paused") {
-    return "bg-[#fff8c5]";
+    return "agent-row-warning";
   }
 
   if (
@@ -129,14 +129,14 @@ function rowTone(type: AgentEvent["type"]): string {
     type === "job_confirmed" ||
     type === "receipt_saved"
   ) {
-    return "bg-[#dafbe1]";
+    return "agent-row-success";
   }
 
   if (type === "job_cancelled" || type === "error") {
-    return "bg-[#fff1f1]";
+    return "agent-row-danger";
   }
 
-  return "bg-white";
+  return "agent-row-neutral";
 }
 
 function relativeTime(timestamp: number, now: number): string {

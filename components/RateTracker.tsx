@@ -42,40 +42,40 @@ export function RateTracker({
   }, []);
 
   return (
-    <section className="rounded-md border border-[#d8dee4] bg-white p-5 shadow-sm">
+    <section className="agent-card p-5">
       <div className="flex flex-col gap-2">
         <p
           key={pulseKey}
-          className="agentremit-rate-pulse text-[32px] font-medium leading-tight tracking-normal text-[#24292f]"
+          className="agentremit-rate-pulse text-[32px] font-semibold leading-tight tracking-normal agent-heading"
         >
           1 USDC = ₦
           {currentRate.toLocaleString("en-NG", {
             maximumFractionDigits: 2,
           })}
         </p>
-        <p className="text-sm text-[#6e7781]">
+        <p className="text-sm agent-muted">
           {isWatching ? "Agent watching" : rateLabel(source)} - Updated{" "}
           {formatAge(updatedAt, now)} from {sourceLabel(source)}
         </p>
       </div>
 
       {isFallbackRate || !executable ? (
-        <div className="mt-4 rounded-md border border-[#fff8c5] bg-[#fffdef] px-3 py-2 text-[13px] leading-5 text-[#7d4e00]">
+        <div className="agent-alert-warning mt-4 rounded-md px-3 py-2 text-[13px] leading-5">
           This is a display-only fallback rate. Agent execution will wait until a
           live FX source is configured.
         </div>
       ) : null}
 
       <div className="mt-6">
-        <div className="h-2 overflow-hidden rounded-full bg-[#eaeef2]">
+        <div className="agent-progress-track h-2 overflow-hidden rounded-full">
           <div
             className={`h-full rounded-full transition-all duration-500 ${progressFillClass(progress, targetReached)}`}
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="mt-2 text-[13px] text-[#6e7781]">
+        <div className="mt-2 text-[13px] agent-subtle">
           {targetReached ? (
-            <span className="font-medium text-[#1a7f37]">Target reached!</span>
+            <span className="font-medium agent-success">Target reached!</span>
           ) : (
             `${distanceToTarget.toLocaleString("en-NG", {
               maximumFractionDigits: 2,
@@ -88,18 +88,21 @@ export function RateTracker({
         @keyframes agentremitRatePulse {
           0% {
             transform: scale(1);
+            text-shadow: 0 0 0 rgba(103, 232, 249, 0);
           }
           50% {
-            transform: scale(1.02);
+            transform: scale(1.01);
+            text-shadow: 0 0 22px rgba(103, 232, 249, 0.2);
           }
           100% {
             transform: scale(1);
+            text-shadow: 0 0 0 rgba(103, 232, 249, 0);
           }
         }
 
         .agentremit-rate-pulse {
           transform-origin: left center;
-          animation: agentremitRatePulse 300ms ease-out;
+          animation: agentremitRatePulse 700ms ease-out;
         }
       `}</style>
     </section>
@@ -119,14 +122,14 @@ function calculateProgress(rate: number, targetRate: number): number {
 
 function progressFillClass(progress: number, targetReached: boolean): string {
   if (targetReached || progress >= 90) {
-    return "bg-[#1a7f37]";
+    return "agent-progress-good";
   }
 
   if (progress >= 60) {
-    return "bg-[#bf8700]";
+    return "agent-progress-mid";
   }
 
-  return "bg-[#8c959f]";
+  return "agent-progress-low";
 }
 
 function rateLabel(source: string): string {

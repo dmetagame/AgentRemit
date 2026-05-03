@@ -270,89 +270,97 @@ export default function Home() {
   const receiptsAgentHandle = agentConfig?.ensName ?? SEEDED_AGENT_HANDLE;
 
   return (
-    <main className="min-h-screen bg-[#f7f8fa] text-[#101418]">
-      <nav className="border-b border-[#d8dee4] bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
-          <div>
-            <p className="text-xl font-semibold tracking-normal text-[#101418]">
-              AgentRemit
-            </p>
-            <p className="mt-1 text-sm text-[#57606a]">
-              Send money home, automatically
-            </p>
-          </div>
-          <ConnectWalletButton />
-        </div>
-      </nav>
+    <main className="ambient-shell min-h-screen overflow-x-hidden">
+      <div className="ambient-light ambient-light-one" aria-hidden="true" />
+      <div className="ambient-light ambient-light-two" aria-hidden="true" />
+      <div className="ambient-light ambient-light-three" aria-hidden="true" />
+      <div className="ambient-grain" aria-hidden="true" />
+      <div className="ambient-vignette" aria-hidden="true" />
 
-      <SystemStatus />
-
-      <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:px-8 lg:grid-cols-2 lg:px-12">
-        <section className="flex flex-col gap-4">
-          <div>
-            <p className="text-sm font-medium text-[#1a7f37]">
-              Set up your agent
-            </p>
-            <h1 className="mt-2 text-[18px] font-semibold text-[#24292f]">
-              Deploy your remittance agent
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-[#57606a]">
-              {leftColumnMessage(state)}
-            </p>
-          </div>
-
-          <SetupForm
-            currentRate={currentRate}
-            onAgentStarted={handleAgentStarted}
-          />
-
-          <AgentControls
-            job={activeJob}
-            durable={jobDurable}
-            onJobUpdated={applyJobToDashboard}
-          />
-
-          {agentConfig ? (
-            <div className="rounded-md border border-[#d8dee4] bg-white p-5 shadow-sm">
-              <p className="text-xs font-medium uppercase text-[#6e7781]">
-                0G agent handle
+      <div className="relative z-10 min-h-screen">
+        <nav className="ambient-nav">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
+            <div>
+              <p className="text-xl font-semibold tracking-normal agent-heading">
+                AgentRemit
               </p>
-              <p className="mt-2 break-all font-mono text-sm text-[#24292f]">
-                {agentConfig.ensName}
+              <p className="mt-1 text-sm agent-muted">
+                Send money home, automatically
               </p>
             </div>
-          ) : null}
-        </section>
-
-        <section className="flex flex-col gap-4">
-          <div>
-            <p className="text-sm font-medium text-[#1a7f37]">
-              Monitoring
-            </p>
-            <h2 className="mt-2 text-[18px] font-semibold text-[#24292f]">
-              {rightColumnHeading(state)}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-[#57606a]">
-              {rightColumnMessage(state)}
-            </p>
+            <ConnectWalletButton />
           </div>
+        </nav>
 
-          <RateTracker
-            currentRate={currentRate}
-            targetRate={targetRate}
-            isWatching={isWatching}
-            updatedAt={rateUpdatedAt}
-            source={rateSource}
-            executable={rateExecutable}
-          />
+        <SystemStatus />
 
-          <ActivityFeed events={events} status={activityStatus(state)} />
+        <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:px-12">
+          <section className="flex flex-col gap-4">
+            <div>
+              <p className="text-sm font-medium agent-accent">
+                Set up your agent
+              </p>
+              <h1 className="mt-2 text-[18px] font-semibold agent-heading">
+                Deploy your remittance agent
+              </h1>
+              <p className="mt-2 text-sm leading-6 agent-muted">
+                {leftColumnMessage(state)}
+              </p>
+            </div>
 
-          <ReceiptsTable
-            agentEnsName={receiptsAgentHandle}
-            refreshKey={receiptsRefreshKey}
-          />
-        </section>
+            <SetupForm
+              currentRate={currentRate}
+              onAgentStarted={handleAgentStarted}
+            />
+
+            <AgentControls
+              job={activeJob}
+              durable={jobDurable}
+              onJobUpdated={applyJobToDashboard}
+            />
+
+            {agentConfig ? (
+              <div className="agent-card p-5">
+                <p className="text-xs font-medium uppercase agent-subtle">
+                  0G agent handle
+                </p>
+                <p className="mt-2 break-all font-mono text-sm agent-heading">
+                  {agentConfig.ensName}
+                </p>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <div>
+              <p className="text-sm font-medium agent-accent">
+                Monitoring
+              </p>
+              <h2 className="mt-2 text-[18px] font-semibold agent-heading">
+                {rightColumnHeading(state)}
+              </h2>
+              <p className="mt-2 text-sm leading-6 agent-muted">
+                {rightColumnMessage(state)}
+              </p>
+            </div>
+
+            <RateTracker
+              currentRate={currentRate}
+              targetRate={targetRate}
+              isWatching={isWatching}
+              updatedAt={rateUpdatedAt}
+              source={rateSource}
+              executable={rateExecutable}
+            />
+
+            <ActivityFeed events={events} status={activityStatus(state)} />
+
+            <ReceiptsTable
+              agentEnsName={receiptsAgentHandle}
+              refreshKey={receiptsRefreshKey}
+            />
+          </section>
+        </div>
       </div>
     </main>
   );

@@ -118,22 +118,22 @@ export function AgentControls({
   }
 
   return (
-    <section className="rounded-md border border-[#d8dee4] bg-white p-5 shadow-sm">
+    <section className="agent-card p-5">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase text-[#6e7781]">
+            <p className="text-xs font-medium uppercase agent-subtle">
               Agent job
             </p>
-            <h2 className="mt-1 text-xl font-semibold capitalize text-[#24292f]">
+            <h2 className="mt-1 text-xl font-semibold capitalize agent-heading">
               {statusLabel}
             </h2>
             {job ? (
-              <p className="mt-2 break-all font-mono text-xs text-[#57606a]">
+              <p className="mt-2 break-all font-mono text-xs agent-subtle">
                 {job.id}
               </p>
             ) : (
-              <p className="mt-2 text-sm leading-6 text-[#57606a]">
+              <p className="mt-2 text-sm leading-6 agent-muted">
                 Deploy an agent to create a server-side job.
               </p>
             )}
@@ -142,7 +142,7 @@ export function AgentControls({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="h-9 rounded-md border border-[#d8dee4] px-3 text-sm font-semibold text-[#24292f] transition hover:bg-[#f6f8fa] disabled:cursor-not-allowed disabled:opacity-50"
+              className="agent-button agent-button-secondary h-9 px-3 text-sm"
               disabled={!canPause || pendingAction !== null}
               onClick={() => submitControl("pause")}
             >
@@ -150,7 +150,7 @@ export function AgentControls({
             </button>
             <button
               type="button"
-              className="h-9 rounded-md bg-[#0969da] px-3 text-sm font-semibold text-white transition hover:bg-[#075ebf] disabled:cursor-not-allowed disabled:opacity-50"
+              className="agent-button agent-button-primary h-9 px-3 text-sm"
               disabled={!canResume || pendingAction !== null}
               onClick={() => submitControl("resume")}
             >
@@ -158,7 +158,7 @@ export function AgentControls({
             </button>
             <button
               type="button"
-              className="h-9 rounded-md border border-[#ffebe9] px-3 text-sm font-semibold text-[#cf222e] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-50"
+              className="agent-button agent-button-danger h-9 px-3 text-sm"
               disabled={!canCancel || pendingAction !== null}
               onClick={() => submitControl("cancel")}
             >
@@ -167,7 +167,7 @@ export function AgentControls({
           </div>
         </div>
 
-        <div className="grid gap-3 border-t border-[#d8dee4] pt-4 sm:grid-cols-3">
+        <div className="grid gap-3 border-t agent-divider pt-4 sm:grid-cols-3">
           <Metric label="Job store" value={durable ? "Redis durable" : "Memory fallback"} />
           <Metric
             label="0G memory"
@@ -188,13 +188,13 @@ export function AgentControls({
 
         {job ? (
           <form
-            className="flex flex-col gap-3 border-t border-[#d8dee4] pt-4 sm:flex-row sm:items-end"
+            className="flex flex-col gap-3 border-t agent-divider pt-4 sm:flex-row sm:items-end"
             onSubmit={updateTarget}
           >
-            <label className="grid flex-1 gap-2 text-sm font-medium text-[#24292f]">
+            <label className="grid flex-1 gap-2 text-sm font-medium agent-heading">
               Target NGN rate
               <input
-                className="h-10 rounded-md border border-[#d0d7de] px-3 text-sm font-normal text-[#101418] outline-none transition placeholder:text-[#8c959f] focus:border-[#1a7f37] focus:ring-2 focus:ring-[#1a7f37]/20"
+                className="agent-input h-10 px-3 text-sm font-normal"
                 type="number"
                 min={1}
                 step="any"
@@ -206,7 +206,7 @@ export function AgentControls({
             </label>
             <button
               type="submit"
-              className="h-10 rounded-md bg-[#1a7f37] px-4 text-sm font-semibold text-white transition hover:bg-[#116329] disabled:cursor-not-allowed disabled:opacity-50"
+              className="agent-button agent-button-primary h-10 px-4 text-sm"
               disabled={!canUpdateTarget || pendingAction !== null}
             >
               {pendingAction === "update_target" ? "Updating" : "Update target"}
@@ -215,7 +215,7 @@ export function AgentControls({
         ) : null}
 
         {error ? (
-          <p className="rounded-md border border-[#ffebe9] bg-[#fff1f1] px-3 py-2 text-sm text-[#cf222e]">
+          <p className="agent-alert-danger rounded-md px-3 py-2 text-sm">
             {error}
           </p>
         ) : null}
@@ -235,8 +235,8 @@ function Metric({
 }) {
   return (
     <div>
-      <p className="text-[11px] font-medium uppercase text-[#6e7781]">{label}</p>
-      <p className="mt-1 break-all text-sm font-semibold text-[#24292f]" title={title}>
+      <p className="text-[11px] font-medium uppercase agent-subtle">{label}</p>
+      <p className="mt-1 break-all text-sm font-semibold agent-heading" title={title}>
         {value}
       </p>
     </div>

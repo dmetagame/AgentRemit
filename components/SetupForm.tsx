@@ -163,27 +163,27 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
 
   return (
     <form
-      className="rounded-md border border-[#d8dee4] bg-white p-6 shadow-sm"
+      className="agent-card p-6"
       onSubmit={submit}
     >
       <div className="grid gap-6">
-        <label className="grid gap-2 text-sm font-medium text-[#24292f]">
+        <label className="grid gap-2 text-sm font-medium agent-heading">
           Agent label
           <input
-            className="h-11 rounded-md border border-[#d0d7de] px-3 text-sm font-normal text-[#101418] outline-none transition placeholder:text-[#8c959f] focus:border-[#1a7f37] focus:ring-2 focus:ring-[#1a7f37]/20"
+            className="agent-input h-11 px-3 text-sm font-normal"
             value={name}
             onChange={(event) => setName(event.target.value)}
             autoComplete="name"
           />
-          <span className="font-mono text-xs font-normal text-[#6e7781]">
+          <span className="font-mono text-xs font-normal agent-subtle">
             {generatedAgentHandle}
           </span>
         </label>
 
-        <label className="grid gap-2 text-sm font-medium text-[#24292f]">
+        <label className="grid gap-2 text-sm font-medium agent-heading">
           Recipient wallet address
           <input
-            className="h-11 rounded-md border border-[#d0d7de] px-3 text-sm font-normal text-[#101418] outline-none transition placeholder:text-[#8c959f] focus:border-[#1a7f37] focus:ring-2 focus:ring-[#1a7f37]/20"
+            className="agent-input h-11 px-3 text-sm font-normal"
             placeholder="0x..."
             value={recipientInput}
             onChange={(event) => setRecipientInput(event.target.value)}
@@ -204,10 +204,10 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
         </label>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-[#24292f]">
+          <label className="grid gap-2 text-sm font-medium agent-heading">
             Amount to send (USDC)
             <input
-              className="h-11 rounded-md border border-[#d0d7de] px-3 text-sm font-normal text-[#101418] outline-none transition placeholder:text-[#8c959f] focus:border-[#1a7f37] focus:ring-2 focus:ring-[#1a7f37]/20"
+              className="agent-input h-11 px-3 text-sm font-normal"
               type="number"
               min={1}
               step={1}
@@ -217,10 +217,10 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-medium text-[#24292f]">
+          <label className="grid gap-2 text-sm font-medium agent-heading">
             Target NGN rate
             <input
-              className="h-11 rounded-md border border-[#d0d7de] px-3 text-sm font-normal text-[#101418] outline-none transition placeholder:text-[#8c959f] focus:border-[#1a7f37] focus:ring-2 focus:ring-[#1a7f37]/20"
+              className="agent-input h-11 px-3 text-sm font-normal"
               type="number"
               min={1}
               step="any"
@@ -233,21 +233,21 @@ export function SetupForm({ onAgentStarted, currentRate }: SetupFormProps) {
               value={targetRateNgn}
               onChange={(event) => setTargetRateNgn(event.target.value)}
             />
-            <span className="text-xs font-normal text-[#6e7781]">
+            <span className="text-xs font-normal agent-subtle">
               Agent fires when rate reaches this target
             </span>
           </label>
         </div>
 
         {submitError ? (
-          <p className="rounded-md border border-[#ffebe9] bg-[#fff1f1] px-3 py-2 text-sm text-[#cf222e]">
+          <p className="agent-alert-danger rounded-md px-3 py-2 text-sm">
             {submitError}
           </p>
         ) : null}
 
         <button
           type="submit"
-          className="h-11 rounded-md bg-[#1a7f37] px-5 text-sm font-semibold text-white transition hover:bg-[#116329] disabled:cursor-not-allowed disabled:bg-[#94d3a2]"
+          className="agent-button agent-button-primary h-11 px-5 text-sm"
           disabled={!canSubmit}
         >
           {isSubmitting ? "Deploying..." : "Deploy Agent"}
@@ -284,12 +284,12 @@ function resolverTextClass(state: "idle" | "loading" | "resolved" | "error") {
   const base = "text-xs font-normal";
 
   if (state === "resolved") {
-    return `${base} text-[#1a7f37]`;
+    return `${base} agent-success`;
   }
 
   if (state === "error") {
-    return `${base} text-[#cf222e]`;
+    return `${base} agent-danger`;
   }
 
-  return `${base} text-[#6e7781]`;
+  return `${base} agent-subtle`;
 }
