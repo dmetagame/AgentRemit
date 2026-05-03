@@ -6,6 +6,7 @@ test("fallback FX rate is display-only by default", async () => {
   await withEnv(
     {
       EXCHANGE_RATE_API_KEY: "",
+      AGENTREMIT_DISABLE_OPEN_RATE_PROVIDER: "true",
       KEEPERHUB_MODE: "",
       AGENTREMIT_ALLOW_FALLBACK_RATE_EXECUTION: "",
     },
@@ -23,6 +24,7 @@ test("fallback FX rate is executable only in explicit mock/local mode", async ()
   await withEnv(
     {
       EXCHANGE_RATE_API_KEY: "",
+      AGENTREMIT_DISABLE_OPEN_RATE_PROVIDER: "true",
       KEEPERHUB_MODE: "mock",
       AGENTREMIT_ALLOW_FALLBACK_RATE_EXECUTION: "",
     },
