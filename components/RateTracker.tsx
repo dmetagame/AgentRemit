@@ -142,6 +142,10 @@ function sourceLabel(source: string): string {
     return "ExchangeRate API";
   }
 
+  if (source === "open-er-api") {
+    return "Open ExchangeRate API";
+  }
+
   return source || "unknown source";
 }
 
